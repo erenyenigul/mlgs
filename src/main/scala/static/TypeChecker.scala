@@ -77,6 +77,31 @@ object TypeChecker {
       case Seq(e1, e2) =>
         infer(e1, context)
         infer(e2, context)
+
+      case New(t, b, e) =>
+        val te = infer(e, context)
+
+        if (!(context.pc ⊑ te.annotation)) {
+          throw ProgramCounterViolation(te.annotation, context.pc)
+        }
+
+        Type(RefType(te), Static(b))
+
+      case Prot(b, e) =>
+        val te = infer(e, context)
+
+        Type(
+          te.s, te.annotation ⊔ Static(b)
+        )
+
+      /*
+      case lang.Expression.Bang(_) => ???
+      case lang.Expression.Assign(_, _) => ???
+      case lang.Expression.Cast(_, _, _, _) => ???
+      case lang.Expression.Prot(_, _) => ???
+      case lang.Expression.GuardCast(_, _, _, _) => ???
+      case lang.Expression.PointerCast(_, _, _, _) => ???
+      case lang.Expression.FunctionGuardCast(_, _, _, _) => ??? */
     }
   }
 }
