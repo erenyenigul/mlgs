@@ -48,14 +48,14 @@ object Parser extends JavaTokenParsers {
     })
 
   private def simpleExpression: Parser[Expression] =
-    positioned("new" ~> ("^" ~> "(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
+    positioned("new" ~> ("(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
       case t ~ b ~ e => Expression.New(t, b, e)
     }) |
       positioned("!" ~> simpleExpression ^^ Expression.Bang.apply) |
-      positioned("{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "^" ~> blameLabel) ~ simpleExpression ^^ {
+      positioned("{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "@" ~> blameLabel) ~ simpleExpression ^^ {
         case to ~ from ~ p ~ e => Expression.Cast(to, from, p, e)
       }) |
-      positioned("prot" ~> ("^" ~> securityLevel) ~ simpleExpression ^^ {
+      positioned("prot" ~> securityLevel ~ simpleExpression ^^ {
         case b ~ e => Expression.Prot(b, e)
       }) |
       positioned(atomExpression ~ atomExpression ^^ {
@@ -66,14 +66,14 @@ object Parser extends JavaTokenParsers {
   private def atomExpression: Parser[Expression] =
     positioned(value ^^ Expression.Val.apply) |
       positioned(variable ^^ Expression.Var.apply) |
-      positioned(("(" ~> rawValue <~ ")") ~ ("^" ~> securityLevel) ^^ {
+      positioned(("(" ~> rawValue <~ ")") ~ ("@" ~> securityLevel) ^^ {
         case w ~ b => Expression.Val(Value(w, b))
       }) |
     "(" ~> expression <~ ")"
 
 
   private def value: Parser[Value] =
-    rawValue ~ opt("^" ~> securityLevel) ^^ {
+    rawValue ~ opt("@" ~> securityLevel) ^^ {
       case w ~ Some(explicitLevel) =>
        Value(w, explicitLevel)
 
@@ -91,12 +91,12 @@ object Parser extends JavaTokenParsers {
     """\d+""".r ^^ { numericStr => RawValue.Const(numericStr.toInt) }
 
   private def lambda: Parser[RawValue.Lambda] =
-    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ (("." | "=>") ~> atomExpression) ^^ {
+    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ ("->" ~> atomExpression) ^^ {
       case xVar ~ paramType ~ pc ~ body => RawValue.Lambda(xVar, paramType, pc, body)
     }
 
   private def variable: Parser[Variable] =
-    not("in" | "let" | "fn" | "new" | "prot" | "ref" | "int" | "unit") ~> ident ^^ Variable.apply
+    not("in" | "let" | "fn" | "new" | "prot" | "ref" | "int" | "unit" | "low" | "high") ~> ident ^^ Variable.apply
 
   private def blameLabel: Parser[BlameLabel] =
     repsep(blameId, ",")
@@ -105,7 +105,7 @@ object Parser extends JavaTokenParsers {
     ident ^^ BlameId.apply
 
   private def _type: Parser[Type] =
-    (rawType <~ "^") ~ typeAnnotation ^^ {
+    (rawType <~ "@") ~ typeAnnotation ^^ {
       case s ~ b => Type(s, b)
     }
 
@@ -121,5 +121,5 @@ object Parser extends JavaTokenParsers {
     securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn
 
   private def securityLevel: Parser[SecurityLevel] =
-    "L" ^^^ SecurityLevel.L | "H" ^^^ SecurityLevel.H
+    "low" ^^^ SecurityLevel.L | "high" ^^^ SecurityLevel.H
 }
