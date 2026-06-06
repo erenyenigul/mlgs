@@ -4,6 +4,7 @@ import lang.*
 enum TypeError extends Exception:
   case StructuralMismatch(expected: RawType, found: RawType)
   case TypeMismatch(expected: Type, found: Type)
+  case ExpectedRefType(found: Type)
   case SecurityFlowViolation(expected: TypeAnnotation, found: TypeAnnotation)
   case ProgramCounterViolation(pc: TypeAnnotation, allowedEffect: TypeAnnotation)
   case ReferenceInvarianceViolation(t1: Type, t2: Type)
@@ -17,6 +18,8 @@ enum TypeError extends Exception:
       s"Static Type Error: Structural mismatch. Expected ${exp}, but found ${fnd}."
     case TypeMismatch(exp, fnd) =>
       s"Static Type Error: Type mismatch. Expected ${exp}, but found ${fnd}."
+    case ExpectedRefType(fnd) =>
+      s"Static Type Error: Expected a reference, but found ${fnd}"
     case SecurityFlowViolation(exp, fnd) =>
       s"Static Security Error: Illegal flow. Cannot unify tier ${fnd} into ${exp}."
     case ProgramCounterViolation(pc, eff) =>

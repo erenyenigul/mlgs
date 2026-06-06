@@ -7,7 +7,7 @@ import lang.TypeAnnotation.Static
 import lang.{Expression, SecurityLevel, Type, TypeAnnotation, Value, Variable}
 import lang.Expression.*
 import static.*
-import static.TypeError.{CannotApplyNonFunction, InvalidMemoryLocation, ProgramCounterViolation, TypeMismatch, UnboundVariable}
+import static.TypeError.{CannotApplyNonFunction, ExpectedRefType, InvalidMemoryLocation, ProgramCounterViolation, TypeMismatch, UnboundVariable}
 
 import scala.collection.mutable
 
@@ -94,8 +94,16 @@ object TypeChecker {
           te.s, te.annotation ⊔ Static(b)
         )
 
+      case lang.Expression.Bang(e) =>
+        val te = infer(e, context)
+
+        te match {
+          case Type(RefType(Type(s, b_)), b) =>
+            Type(s, b_ ⊔ b)
+          case _ => throw ExpectedRefType(te)
+        }
+
       /*
-      case lang.Expression.Bang(_) => ???
       case lang.Expression.Assign(_, _) => ???
       case lang.Expression.Cast(_, _, _, _) => ???
       case lang.Expression.Prot(_, _) => ???
