@@ -2,10 +2,11 @@ import lang.Parser
 import static.{Context, TypeChecker}
 
 import scala.util.parsing.combinator.*
+import pprint.pprintln
 
 @main
 def main(): Unit = {
-  val program = Parser.run("let z = (fn x : int^L @ H => 5) ^ ? in z")
+  val program = Parser.run("let z = 5^H in new ^ (int ^ H, L) z")
 
-  println(TypeChecker.infer(program, Context()))
+  pprintln(TypeChecker.infer(program, Context()))
 }

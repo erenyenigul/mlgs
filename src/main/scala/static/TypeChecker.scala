@@ -7,7 +7,7 @@ import lang.TypeAnnotation.Static
 import lang.{Expression, SecurityLevel, Type, TypeAnnotation, Value, Variable}
 import lang.Expression.*
 import static.*
-import static.TypeError.{CannotApplyNonFunction, ExpectedRefType, InvalidMemoryLocation, ProgramCounterViolation, TypeMismatch, UnboundVariable}
+import static.TypeError.{CannotApplyNonFunction, ExpectedRefType, InvalidMemoryLocation, ProgramCounterViolation, TypeMismatch, UnboundVariable, IncompatibleCast}
 
 import scala.collection.mutable
 
@@ -57,7 +57,7 @@ object TypeChecker {
 
         t1 match {
           case Type(FuncType(from, pc, to), b) =>
-            if (t2 != from) {
+            if (!(t2 ≺ from)) {
               throw TypeMismatch(from, t2)
             }
             if !((context.pc ⊔ b) ⊑ pc) then
@@ -80,12 +80,11 @@ object TypeChecker {
 
       case New(t, b, e) =>
         val te = infer(e, context)
-
-        if (!(context.pc ⊑ te.annotation)) {
-          throw ProgramCounterViolation(te.annotation, context.pc)
-        }
-
-        Type(RefType(te), Static(b))
+        if !(te ≺ t) then
+          throw TypeMismatch(t, te)
+        if !(context.pc ⊑ t.annotation) then
+          throw ProgramCounterViolation(context.pc, t.annotation)
+        Type(RefType(t), Static(b))
 
       case Prot(b, e) =>
         val te = infer(e, context)
@@ -94,7 +93,7 @@ object TypeChecker {
           te.s, te.annotation ⊔ Static(b)
         )
 
-      case lang.Expression.Bang(e) =>
+      case Bang(e) =>
         val te = infer(e, context)
 
         te match {
@@ -103,7 +102,7 @@ object TypeChecker {
           case _ => throw ExpectedRefType(te)
         }
 
-      case lang.Expression.Assign(e1, e2) =>
+      case Assign(e1, e2) =>
         val te1 = infer(e1, context)
         val te2 = infer(e2, context)
 
@@ -114,7 +113,7 @@ object TypeChecker {
             if (!((context.pc ⊔ b) ⊑ b_))
              throw ProgramCounterViolation(context.pc ⊔ b, b_)
 
-            if (te2 != sb_) {
+            if (!(te2 ≺ sb_)) {
               throw TypeMismatch(sb_, te2)
             }
 
@@ -122,9 +121,20 @@ object TypeChecker {
           case _ => throw ExpectedRefType(te1)
         }
 
+      case Cast(t_, t, p, e) =>
+        val te = infer(e, context)
+
+        if (!(te ≺ t)) {
+          throw TypeMismatch(t, te)
+        }
+
+        if (!Type.compatible(t, t_)) {
+          throw IncompatibleCast(t, t_)
+        }
+
+        t_
+
       /*
-      case lang.Expression.Cast(_, _, _, _) => ???
-      case lang.Expression.Prot(_, _) => ???
       case lang.Expression.GuardCast(_, _, _, _) => ???
       case lang.Expression.PointerCast(_, _, _, _) => ???
       case lang.Expression.FunctionGuardCast(_, _, _, _) => ??? */

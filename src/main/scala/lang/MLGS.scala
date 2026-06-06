@@ -48,6 +48,18 @@ object Type:
       compatible(f1, f2) && compatible(t1, t2)
     case _ => false
 
+  extension (a: Type)
+    def ≺(b: Type): Boolean = (a, b) match
+      case (Type(RawType.IntType, b1), Type(RawType.IntType, b2)) =>
+        b1 ⊑ b2
+      case (Type(RawType.UnitType, b1), Type(RawType.UnitType, b2)) =>
+        b1 ⊑ b2
+      case (Type(RawType.RefType(t1), b1), Type(RawType.RefType(t2), b2)) =>
+        b1 ⊑ b2 && t1 == t2 // invariant
+      case (Type(RawType.FuncType(f1, pc1, t1), b1), Type(RawType.FuncType(f2, pc2, t2), b2)) =>
+        b1 ⊑ b2 && pc2 ⊑ pc1 && f2 ≺ f1 && t1 ≺ t2
+      case _ => false
+
 case class BlameId(id : String)
 type BlameLabel = List[BlameId]
 

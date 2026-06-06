@@ -7,5 +7,6 @@ ThisBuild / scalaVersion := "3.3.7"
 lazy val root = (project in file("."))
   .settings(
     name := "ml-gs",
-    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0"
+    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "2.4.0",
+    libraryDependencies += "com.lihaoyi" %% "pprint" % "0.8.1"
   )
