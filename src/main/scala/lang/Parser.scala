@@ -8,15 +8,15 @@ def freshVar(prefix: String = ""): Variable =
   val uniqueId = UUID.randomUUID().toString.replace("-", "").take(8)
   Variable(s".${prefix}_$uniqueId")
 
-class Parser extends JavaTokenParsers {
+object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
 
-  def run(input: String): Unit =
+  def run(input: String): Expression =
     parseAll(program, input) match {
-      case Success(matched, _) => println(matched)
-      case Failure(msg, _) => println(s"FAILURE: $msg")
-      case Error(msg, _) => println(s"ERROR: $msg")
+      case Success(matched, _) => matched
+      case Failure(msg, _) => throw Exception("Parsing failed: " + msg)
+      case Error(msg, _) => throw Exception("Parsing failed: " + msg)
     }
 
   private def program: Parser[Expression] =
@@ -24,54 +24,45 @@ class Parser extends JavaTokenParsers {
 
   private def sugar: Parser[Expression] = {
     "let" ~ variable ~ "=" ~ expression ~ "in" ~ expression ^^ {
-      case _ ~ variable ~ _ ~ e1 ~ _ ~ e2 => Expression.Apply(
-        Expression.Val(
-          Value(
-            RawValue.Lambda(
-              variable, e2
-            ),
-            SecurityLevel.L
-          )
-        ),
-        e1
-      )
+      case _ ~ v ~ _ ~ e1 ~ _ ~ e2 => Expression.Let(v, e1, e2)
     } |
-    expression ~ ";" ~ expression ^^ {
-      case e1 ~ _ ~ e2 => Expression.Apply(
-        Expression.Val(
-          Value(
-            RawValue.Lambda(
-              freshVar(), e2
-            ),
-            SecurityLevel.L
-          )
-        ),
-        e1
-      )
-    }
+      expression ~ ";" ~ expression ^^ {
+        case e1 ~ _ ~ e2 => Expression.Seq(e1, e2)
+      }
   }
 
   private def expression: Parser[Expression] =
-    value ^^ Expression.Val.apply |
-      variable ^^ Expression.Var.apply |
-      expression ~ expression ^^ {
+    assign | simpleExpression
+
+  private def assign: Parser[Expression] =
+    simpleExpression ~ ":=" ~ simpleExpression ^^ {
+      case lhs ~ _ ~ rhs => Expression.Assign(lhs, rhs)
+    }
+
+  private def simpleExpression: Parser[Expression] =
+    "new" ~> ("^" ~> "(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
+      case t ~ b ~ e => Expression.New(t, b, e)
+    } |
+      "!" ~> simpleExpression ^^ Expression.Bang.apply |
+      "{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "^" ~> blameLabel) ~ simpleExpression ^^ {
+        case to ~ from ~ p ~ e => Expression.Cast(to, from, p, e)
+      } |
+      "prot" ~> ("^" ~> securityLevel) ~ simpleExpression ^^ {
+        case b ~ e => Expression.Prot(b, e)
+      } |
+      atomExpression ~ atomExpression ^^ {
         case e1 ~ e2 => Expression.Apply(e1, e2)
       } |
-      "new" ~ "^" ~ "(" ~ _type ~ "," ~ securityLevel ~ ")" ~ expression ^^ {
-        case _ ~ _ ~ _ ~ t ~ _ ~ b ~ _ ~ e => Expression.New(t, b, e)
+      atomExpression
+
+  private def atomExpression: Parser[Expression] =
+    value ^^ Expression.Val.apply |
+      variable ^^ Expression.Var.apply |
+      ("(" ~> rawValue <~ ")") ~ ("^" ~> securityLevel) ^^ {
+        case w ~ b => Expression.Val(Value(w, b))
       } |
-      "!" ~ expression ^^ {
-        case _ ~ e => Expression.Bang(e)
-      } |
-      expression ~ ":=" ~ expression ^^ {
-        case lhs ~ _ ~ rhs => Expression.Assign(lhs, rhs)
-      } |
-      "{" ~ _type ~ "<=" ~ _type ~ "}" ~ "^" ~ blameLabel ~ expression ^^ {
-        case _ ~ to ~ _ ~ from ~ _ ~ _ ~ p ~ e => Expression.Cast(to, from, p, e)
-      } |
-      "prot" ~ "^" ~ securityLevel ~ expression ^^ {
-        case _ ~ _ ~ b ~ e => Expression.Prot(b, e)
-      }
+    "(" ~> expression <~ ")"
+
 
   private def value: Parser[Value] =
     rawValue ~ opt("^" ~> securityLevel) ^^ {
@@ -92,12 +83,12 @@ class Parser extends JavaTokenParsers {
     """\d+""".r ^^ { numericStr => RawValue.Const(numericStr.toInt) }
 
   private def lambda: Parser[RawValue.Lambda] =
-    ("λ" | "fn") ~> variable ~ ("." | "=>") ~ expression ^^ {
-      case xVar ~ _ ~ body => RawValue.Lambda(xVar, body)
+    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ (("." | "=>") ~> atomExpression) ^^ {
+      case xVar ~ paramType ~ pc ~ body => RawValue.Lambda(xVar, paramType, pc, body)
     }
 
   private def variable: Parser[Variable] =
-    ident ^^ Variable.apply
+    not("in" | "let" | "fn" | "new" | "prot" | "ref" | "int" | "unit") ~> ident ^^ Variable.apply
 
   private def blameLabel: Parser[BlameLabel] =
     repsep(blameId, ",")
@@ -119,7 +110,7 @@ class Parser extends JavaTokenParsers {
       "ref" ~> _type ^^ RawType.RefType.apply
 
   private def typeAnnotation: Parser[TypeAnnotation] =
-    securityLevel ^^ TypeAnnotation.Known.apply | "?" ^^^ TypeAnnotation.StaticUnknown
+    securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn
 
   private def securityLevel: Parser[SecurityLevel] =
     "L" ^^^ SecurityLevel.L | "H" ^^^ SecurityLevel.H

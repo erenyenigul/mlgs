@@ -1,9 +1,11 @@
 import lang.Parser
-import scala.util.parsing.combinator._
+import static.{Context, TypeChecker}
+
+import scala.util.parsing.combinator.*
 
 @main
 def main(): Unit = {
-  val parser = Parser()
+  val program = Parser.run("let z = (fn x : int^L @ H => 5) ^ ? in z")
 
-  parser.run("let x = 0^H in 5")
+  println(TypeChecker.infer(program, Context()))
 }
