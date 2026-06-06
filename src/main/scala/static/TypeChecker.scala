@@ -103,8 +103,26 @@ object TypeChecker {
           case _ => throw ExpectedRefType(te)
         }
 
+      case lang.Expression.Assign(e1, e2) =>
+        val te1 = infer(e1, context)
+        val te2 = infer(e2, context)
+
+        te1 match {
+          case Type(RefType(sb_), b) =>
+            val b_ = sb_.annotation
+
+            if (!((context.pc ⊔ b) ⊑ b_))
+             throw ProgramCounterViolation(context.pc ⊔ b, b_)
+
+            if (te2 != sb_) {
+              throw TypeMismatch(sb_, te2)
+            }
+
+            Type(UnitType, b_)
+          case _ => throw ExpectedRefType(te1)
+        }
+
       /*
-      case lang.Expression.Assign(_, _) => ???
       case lang.Expression.Cast(_, _, _, _) => ???
       case lang.Expression.Prot(_, _) => ???
       case lang.Expression.GuardCast(_, _, _, _) => ???
