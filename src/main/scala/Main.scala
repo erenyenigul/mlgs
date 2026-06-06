@@ -6,7 +6,11 @@ import pprint.pprintln
 @main
 def main(): Unit = {
   try {
-    val (program, source) = Parser.run("let z = 5^H \n in new ^ (int ^ L, L) z")
+    val (program, source) = Parser.run(
+      """
+        |let z = 5@high in
+        |  new(int@high, low) z
+        |""".stripMargin)
     val res = TypeChecker(program, source).run()
 
     pprintln(res)
