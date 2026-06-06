@@ -1,4 +1,3 @@
-import lang.Parser
 import static.{Context, TypeChecker}
 
 import scala.util.parsing.combinator.*
