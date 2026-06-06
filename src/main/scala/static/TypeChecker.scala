@@ -10,6 +10,7 @@ import static.*
 import static.TypeError.{CannotApplyNonFunction, ExpectedRefType, InvalidMemoryLocation, ProgramCounterViolation, TypeMismatch, UnboundVariable, IncompatibleCast}
 
 import scala.collection.mutable
+import scala.util.parsing.input.NoPosition
 
 type Env [A, B] = mutable.Map[A, B]
 
@@ -28,14 +29,24 @@ case class Context(
     this.copy(pc = newPC)
 }
 
-object TypeChecker {
+class TypeChecker(program: Expression, source: String = ""):
 
-  def infer(e: Expression, context: Context): Type = {
+  def run(context: Context = Context()): Type = infer(program, context)
+
+  private def getSourceLine(line: Int): String =
+    source.linesIterator.drop(line - 1).nextOption().getOrElse("")
+
+  private def errorAt(e: Expression, err: TypeError): Nothing =
+    val pos = e.pos
+    if pos == NoPosition then throw err
+    else throw TypeErrorAt(err, pos.line, pos.column, getSourceLine(pos.line))
+
+  private def infer(e: Expression, context: Context): Type = {
     e match {
       case Var(Variable(id)) =>
         context.variableEnv.get(id) match {
           case Some(t) => t
-          case None => throw UnboundVariable(id)
+          case None => errorAt(e, UnboundVariable(id))
         }
       case Val(Value(w, b)) =>
         w match {
@@ -44,11 +55,10 @@ object TypeChecker {
           case Loc(l, t_, p) =>
             context.addressEnv.get(l) match {
               case Some(t) => Type(RefType(t_), Static(b))
-              case None => throw InvalidMemoryLocation(l)
+              case None => errorAt(e, InvalidMemoryLocation(l))
             }
-          case Lambda(Variable(id), t, pc_, e) =>
-            val t_ = infer(e, context.withVariable(id, t))
-
+          case Lambda(Variable(id), t, pc_, body) =>
+            val t_ = infer(body, context.withVariable(id, t))
             Type(FuncType(t, pc_, t_), Static(b))
         }
       case Apply(e1, e2) =>
@@ -58,16 +68,14 @@ object TypeChecker {
         t1 match {
           case Type(FuncType(from, pc, to), b) =>
             if (!(t2 ≺ from)) {
-              throw TypeMismatch(from, t2)
+              errorAt(e, TypeMismatch(from, t2))
             }
             if !((context.pc ⊔ b) ⊑ pc) then
-              throw ProgramCounterViolation(context.pc, pc)
+              errorAt(e, ProgramCounterViolation(context.pc, pc))
 
-            println(b)
-            println(to)
             Type(to.s, to.annotation ⊔ b)
 
-          case other => throw CannotApplyNonFunction(other)
+          case other => errorAt(e, CannotApplyNonFunction(other))
         }
 
       case Let(x, e1, e2) =>
@@ -78,28 +86,25 @@ object TypeChecker {
         infer(e1, context)
         infer(e2, context)
 
-      case New(t, b, e) =>
-        val te = infer(e, context)
+      case New(t, b, e2) =>
+        val te = infer(e2, context)
         if !(te ≺ t) then
-          throw TypeMismatch(t, te)
+          errorAt(e, TypeMismatch(t, te))
         if !(context.pc ⊑ t.annotation) then
-          throw ProgramCounterViolation(context.pc, t.annotation)
+          errorAt(e, ProgramCounterViolation(context.pc, t.annotation))
         Type(RefType(t), Static(b))
 
-      case Prot(b, e) =>
-        val te = infer(e, context)
+      case Prot(b, e2) =>
+        val te = infer(e2, context)
+        Type(te.s, te.annotation ⊔ Static(b))
 
-        Type(
-          te.s, te.annotation ⊔ Static(b)
-        )
-
-      case Bang(e) =>
-        val te = infer(e, context)
+      case Bang(e2) =>
+        val te = infer(e2, context)
 
         te match {
           case Type(RefType(Type(s, b_)), b) =>
             Type(s, b_ ⊔ b)
-          case _ => throw ExpectedRefType(te)
+          case _ => errorAt(e, ExpectedRefType(te))
         }
 
       case Assign(e1, e2) =>
@@ -111,25 +116,25 @@ object TypeChecker {
             val b_ = sb_.annotation
 
             if (!((context.pc ⊔ b) ⊑ b_))
-             throw ProgramCounterViolation(context.pc ⊔ b, b_)
+              errorAt(e, ProgramCounterViolation(context.pc ⊔ b, b_))
 
             if (!(te2 ≺ sb_)) {
-              throw TypeMismatch(sb_, te2)
+              errorAt(e, TypeMismatch(sb_, te2))
             }
 
             Type(UnitType, b_)
-          case _ => throw ExpectedRefType(te1)
+          case _ => errorAt(e, ExpectedRefType(te1))
         }
 
-      case Cast(t_, t, p, e) =>
-        val te = infer(e, context)
+      case Cast(t_, t, p, e2) =>
+        val te = infer(e2, context)
 
         if (!(te ≺ t)) {
-          throw TypeMismatch(t, te)
+          errorAt(e, TypeMismatch(t, te))
         }
 
         if (!Type.compatible(t, t_)) {
-          throw IncompatibleCast(t, t_)
+          errorAt(e, IncompatibleCast(t, t_))
         }
 
         t_
@@ -140,4 +145,3 @@ object TypeChecker {
       case lang.Expression.FunctionGuardCast(_, _, _, _) => ??? */
     }
   }
-}

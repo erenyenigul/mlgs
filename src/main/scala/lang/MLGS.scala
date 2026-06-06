@@ -73,7 +73,7 @@ enum RawValue:
 
 case class Value(w: RawValue, B: SecurityLevel)
 
-enum Expression:
+enum Expression extends scala.util.parsing.input.Positional:
   case Val(v: Value)
   case Var(x: Variable)
   case Apply(target: Expression, arg: Expression)

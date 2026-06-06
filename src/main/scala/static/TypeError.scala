@@ -1,6 +1,11 @@
 package static
 import lang.*
 
+case class TypeErrorAt(error: TypeError, line: Int, col: Int, sourceLine: String) extends Exception:
+  override def getMessage: String =
+    val caret = " " * (col - 1) + "^"
+    s"${error.getMessage}\n${line} |${sourceLine}\n   ${caret}"
+
 enum TypeError extends Exception:
   case StructuralMismatch(expected: RawType, found: RawType)
   case TypeMismatch(expected: Type, found: Type)

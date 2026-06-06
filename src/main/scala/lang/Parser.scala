@@ -12,55 +12,63 @@ object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
 
-  def run(input: String): Expression =
+  def run(input: String): (Expression, String) =
     parseAll(program, input) match {
-      case Success(matched, _) => matched
-      case Failure(msg, _) => throw Exception("Parsing failed: " + msg)
-      case Error(msg, _) => throw Exception("Parsing failed: " + msg)
+      case Success(matched, _) => (matched, input)
+      case Failure(msg, next) =>
+        val pos = next.pos
+        val srcLine = pos.longString.split('\n').headOption.getOrElse("")
+        val caret = " ".repeat(pos.column - 1) + "^"
+        throw Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret")
+      case Error(msg, next) =>
+        val pos = next.pos
+        val srcLine = pos.longString.split('\n').headOption.getOrElse("")
+        val caret = " ".repeat(pos.column - 1) + "^"
+        throw Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret")
     }
 
   private def program: Parser[Expression] =
     sugar | expression
 
   private def sugar: Parser[Expression] = {
-    "let" ~ variable ~ "=" ~ expression ~ "in" ~ expression ^^ {
+    positioned("let" ~ variable ~ "=" ~ expression ~ "in" ~ expression ^^ {
       case _ ~ v ~ _ ~ e1 ~ _ ~ e2 => Expression.Let(v, e1, e2)
-    } |
-      expression ~ ";" ~ expression ^^ {
+    }) |
+      positioned(expression ~ ";" ~ expression ^^ {
         case e1 ~ _ ~ e2 => Expression.Seq(e1, e2)
-      }
+      })
   }
 
   private def expression: Parser[Expression] =
     assign | simpleExpression
 
   private def assign: Parser[Expression] =
-    simpleExpression ~ ":=" ~ simpleExpression ^^ {
+    positioned(simpleExpression ~ ":=" ~ simpleExpression ^^ {
       case lhs ~ _ ~ rhs => Expression.Assign(lhs, rhs)
-    }
+    })
 
   private def simpleExpression: Parser[Expression] =
-    "new" ~> ("^" ~> "(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
+    positioned("new" ~> ("^" ~> "(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
       case t ~ b ~ e => Expression.New(t, b, e)
-    } |
-      "!" ~> simpleExpression ^^ Expression.Bang.apply |
-      "{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "^" ~> blameLabel) ~ simpleExpression ^^ {
+    }) |
+      positioned("!" ~> simpleExpression ^^ Expression.Bang.apply) |
+      positioned("{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "^" ~> blameLabel) ~ simpleExpression ^^ {
         case to ~ from ~ p ~ e => Expression.Cast(to, from, p, e)
-      } |
-      "prot" ~> ("^" ~> securityLevel) ~ simpleExpression ^^ {
+      }) |
+      positioned("prot" ~> ("^" ~> securityLevel) ~ simpleExpression ^^ {
         case b ~ e => Expression.Prot(b, e)
-      } |
-      atomExpression ~ atomExpression ^^ {
+      }) |
+      positioned(atomExpression ~ atomExpression ^^ {
         case e1 ~ e2 => Expression.Apply(e1, e2)
-      } |
+      }) |
       atomExpression
 
   private def atomExpression: Parser[Expression] =
-    value ^^ Expression.Val.apply |
-      variable ^^ Expression.Var.apply |
-      ("(" ~> rawValue <~ ")") ~ ("^" ~> securityLevel) ^^ {
+    positioned(value ^^ Expression.Val.apply) |
+      positioned(variable ^^ Expression.Var.apply) |
+      positioned(("(" ~> rawValue <~ ")") ~ ("^" ~> securityLevel) ^^ {
         case w ~ b => Expression.Val(Value(w, b))
-      } |
+      }) |
     "(" ~> expression <~ ")"
 
 
