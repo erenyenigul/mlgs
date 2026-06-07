@@ -7,9 +7,9 @@ import runtime.Interpreter
 def main(): Unit = {
     val source =
       """
-        |  let z = (new(int@?, low) 5@low) in
+        |  let z = (new(int@high, low) 5@low) in
         |  z := 5@high;
-        |  !z
+        |  z
         |""".stripMargin
 
     val result = for

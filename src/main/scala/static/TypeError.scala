@@ -1,10 +1,11 @@
 package static
 import lang.*
+import util.Diagnostic.formatLine
 
-case class TypeErrorAt(error: TypeError, line: Int, col: Int, sourceLine: String) extends Exception:
+case class TypeErrorAt(error: TypeError, line: Int, col: Int, sourceLine: String, notes: List[String] = Nil) extends Exception:
   override def getMessage: String =
-    val caret = " " * (col - 1) + "^"
-    s"Type Error: ${error.getMessage}\n${line} |${sourceLine}\n   ${caret}"
+    val notesStr = if notes.isEmpty then "" else "\n" + notes.map(n => s"  note: $n").mkString("\n")
+    s"Type Error: ${error.getMessage}\n${formatLine(line, col, sourceLine)}$notesStr"
 
 enum TypeError extends Exception:
   case StructuralMismatch(expected: RawType, found: RawType)
