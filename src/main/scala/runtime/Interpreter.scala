@@ -11,8 +11,8 @@ import util.{FreshBlame, FreshLoc}
 
 class Interpreter (program: Expression, source: String = "") {
 
-  def run(state: State = State()): Either[Exception, Value] =
-    try Right(interp(program, state)._1)
+  def run(state: State = State()): Either[Exception, (Value, State)] =
+    try Right(interp(program, state))
     catch case e: Exception => Left(e)
 
   private def getSourceLine(line: Int): String =
@@ -65,6 +65,11 @@ class Interpreter (program: Expression, source: String = "") {
     )
   }
 
+  private def resolveType(t: Type, v: Value): Type =
+    t.annotation match
+      case Static(_) => t
+      case Dyn       => Type(t.s, Static(v.B))
+
   private def interp(e: Expression, state: State) : (Value, State) =
     e match {
       case Val(v) => (v, state)
@@ -88,15 +93,16 @@ class Interpreter (program: Expression, source: String = "") {
       case New(t, b, innerExpr) =>
         val (v, state1) = interp(innerExpr, state)
 
+        val resolvedT = resolveType(t, v)
         val loc = FreshLoc()
         val blameLabel = FreshBlame("alloc", e.pos.line, e.pos.column, getSourceLine(e.pos.line))
 
         (
-          Value(Loc(loc, t, blameLabel), b),
+          Value(Loc(loc, resolvedT, blameLabel), b),
           state1.withAllocation(
             loc,
             HeapCell(
-              t,
+              resolvedT,
               blameLabel,
               Value(v.w, v.B ⊔ state1.pc)
             ))

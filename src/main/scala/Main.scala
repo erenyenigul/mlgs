@@ -8,8 +8,7 @@ def main(): Unit = {
     val source =
       """
         |  let z = (new(int@?, low) 5@low) in
-        |  let y = {int@low <= int@?} 5@high in
-        |  z := y;
+        |  z := 5@high;
         |  !z
         |""".stripMargin
 
