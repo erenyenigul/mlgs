@@ -3,11 +3,6 @@ import lang.*
 import java.util.UUID
 import scala.util.parsing.combinator.*
 
-def freshVar(prefix: String = ""): Variable =
-  // Take a portion of the UUID string to keep the identifier reasonably short
-  val uniqueId = UUID.randomUUID().toString.replace("-", "").take(8)
-  Variable(s".${prefix}_$uniqueId")
-
 object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
@@ -27,20 +22,20 @@ object Parser extends JavaTokenParsers {
         throw Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret")
     }
 
-  private def program: Parser[Expression] =
-    sugar | expression
+  private def program: Parser[Expression] = anyExpr
+  private def anyExpr: Parser[Expression] = sugar | expression
 
-  private def sugar: Parser[Expression] = {
-    positioned("let" ~ variable ~ "=" ~ expression ~ "in" ~ expression ^^ {
-      case _ ~ v ~ _ ~ e1 ~ _ ~ e2 => Expression.Let(v, e1, e2)
+  private def sugar: Parser[Expression] =
+    positioned("let" ~> variable ~ ("=" ~> anyExpr) ~ ("in" ~> anyExpr) ^^ {
+      case v ~ e1 ~ e2 => Expression.Let(v, e1, e2)
     }) |
-      positioned(expression ~ ";" ~ expression ^^ {
-        case e1 ~ _ ~ e2 => Expression.Seq(e1, e2)
+      positioned(expression ~ (";" ~> anyExpr) ^^ {
+        case e1 ~ e2 => Expression.Seq(e1, e2)
       })
-  }
 
   private def expression: Parser[Expression] =
-    assign | simpleExpression
+      assign |
+      simpleExpression
 
   private def assign: Parser[Expression] =
     positioned(simpleExpression ~ ":=" ~ simpleExpression ^^ {

@@ -11,7 +11,7 @@ import static.TypeError.{CannotApplyNonFunction, ExpectedRefType, InvalidMemoryL
 
 import scala.util.parsing.input.NoPosition
 
-class TypeChecker(program: Expression, source: String = ""):
+class TypeChecker(program: Expression, source: String = "") {
 
   def run(context: Context = Context()): Type = infer(program, context)
 
@@ -127,3 +127,4 @@ class TypeChecker(program: Expression, source: String = ""):
       case lang.Expression.FunctionGuardCast(_, _, _, _) => ??? */
     }
   }
+}

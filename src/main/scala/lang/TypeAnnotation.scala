@@ -4,6 +4,10 @@ enum TypeAnnotation:
   case Static(level: SecurityLevel)
   case Dyn
 
+  override def toString: String = this match
+    case Static(level) => level.toString
+    case Dyn => "?"
+
 object TypeAnnotation:
   extension (a: TypeAnnotation)
     def ⊔(b: TypeAnnotation): TypeAnnotation = (a, b) match
