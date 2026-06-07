@@ -1,26 +1,36 @@
 import lang.*
 
-import java.util.UUID
 import scala.util.parsing.combinator.*
+import util.FreshBlame
 
 object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
 
-  def run(input: String): (Expression, String) =
-    parseAll(program, input) match {
-      case Success(matched, _) => (matched, input)
-      case Failure(msg, next) =>
-        val pos = next.pos
-        val srcLine = pos.longString.split('\n').headOption.getOrElse("")
-        val caret = " ".repeat(pos.column - 1) + "^"
-        throw Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret")
-      case Error(msg, next) =>
-        val pos = next.pos
-        val srcLine = pos.longString.split('\n').headOption.getOrElse("")
-        val caret = " ".repeat(pos.column - 1) + "^"
-        throw Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret")
-    }
+  def run(input: String): Either[Exception, (Expression, String)] =
+    try
+      parseAll(program, input) match {
+        case Success(matched, _) => Right((matched, input))
+        case Failure(msg, next) =>
+          val pos = next.pos
+          val srcLine = pos.longString.split('\n').headOption.getOrElse("")
+          val caret = " ".repeat(pos.column - 1) + "^"
+          Left(Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret"))
+        case Error(msg, next) =>
+          val pos = next.pos
+          val srcLine = pos.longString.split('\n').headOption.getOrElse("")
+          val caret = " ".repeat(pos.column - 1) + "^"
+          Left(Exception(s"[${pos.line}:${pos.column}] Parsing failed: $msg\n  $srcLine\n  $caret"))
+      }
+    catch
+      case e: Exception => Left(e)
+
+  private def currentPosition: Parser[(Int, Int, String)] = Parser { input =>
+    val line = input.pos.line
+    val col = input.pos.column
+    val srcLine = input.source.toString.linesIterator.drop(line - 1).nextOption().getOrElse("")
+    Success((line, col, srcLine), input)
+  }
 
   private def program: Parser[Expression] = anyExpr
   private def anyExpr: Parser[Expression] = sugar | expression
@@ -47,8 +57,9 @@ object Parser extends JavaTokenParsers {
       case t ~ b ~ e => Expression.New(t, b, e)
     }) |
       positioned("!" ~> simpleExpression ^^ Expression.Bang.apply) |
-      positioned("{" ~> _type ~ ("<=" ~> _type) ~ ("}" ~> "@" ~> blameLabel) ~ simpleExpression ^^ {
-        case to ~ from ~ p ~ e => Expression.Cast(to, from, p, e)
+      positioned(currentPosition ~ ("{" ~> _type) ~ ("<=" ~> _type <~ "}") ~ simpleExpression ^^ {
+        case (line, col, srcLine) ~ to ~ from ~ e =>
+          Expression.Cast(to, from, FreshBlame("cast", line, col, srcLine), e)
       }) |
       positioned("prot" ~> securityLevel ~ simpleExpression ^^ {
         case b ~ e => Expression.Prot(b, e)
@@ -92,12 +103,6 @@ object Parser extends JavaTokenParsers {
 
   private def variable: Parser[Variable] =
     not("in" | "let" | "fn" | "new" | "prot" | "ref" | "int" | "unit" | "low" | "high") ~> ident ^^ Variable.apply
-
-  private def blameLabel: Parser[BlameLabel] =
-    repsep(blameId, ",")
-
-  private def blameId: Parser[BlameId] =
-    ident ^^ BlameId.apply
 
   private def _type: Parser[Type] =
     (rawType <~ "@") ~ typeAnnotation ^^ {

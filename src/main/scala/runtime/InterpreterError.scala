@@ -11,4 +11,10 @@ enum InterpreterError extends Exception:
 
   override def getMessage: String = this match
     case BlameError(p) =>
-      s"Runtime Security Error: Security violation. Blame assigned to cast(s): ${p.map(_.id).mkString(", ")}."
+      val casts = p.map { b =>
+        if b.line > 0 then
+          val caret = " " * (b.col - 1) + "^"
+          s"${b.id}\n  ${b.line} |${b.sourceLine}\n     $caret"
+        else b.id
+      }.mkString("\n  ")
+      s"Runtime Security Error: Security violation. Possible sources:\n  $casts"

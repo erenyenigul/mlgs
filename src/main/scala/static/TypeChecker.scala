@@ -13,7 +13,9 @@ import scala.util.parsing.input.NoPosition
 
 class TypeChecker(program: Expression, source: String = "") {
 
-  def run(context: Context = Context()): Type = infer(program, context)
+  def run(context: Context = Context()): Either[Exception, Type] =
+    try Right(infer(program, context))
+    catch case e: Exception => Left(e)
 
   private def getSourceLine(line: Int): String =
     source.linesIterator.drop(line - 1).nextOption().getOrElse("")

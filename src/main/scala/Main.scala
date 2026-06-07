@@ -1,20 +1,26 @@
 import static.{Context, TypeChecker}
 
-import scala.util.parsing.combinator.*
 import pprint.pprintln
 import runtime.Interpreter
 
 @main
 def main(): Unit = {
-    val (program, source) = Parser.run(
+    val source =
       """
         |  let z = (new(int@?, low) 5@low) in
-        |  let y = {int@low <= int@?}@asdfas 5@high in
+        |  let y = {int@low <= int@?} 5@high in
         |  z := y;
         |  !z
-        |""".stripMargin)
-    TypeChecker(program, source).run()
-    val res = Interpreter(program, source).run()
+        |""".stripMargin
 
-    pprintln(res)
+    val result = for
+      parsed <- Parser.run(source)
+      (program, _) = parsed
+      _      <- TypeChecker(program, source).run()
+      res    <- Interpreter(program, source).run()
+    yield res
+
+    result match
+      case Left(e)    => println(e.getMessage)
+      case Right(res) => pprintln(res)
 }

@@ -11,7 +11,9 @@ import util.{FreshBlame, FreshLoc}
 
 class Interpreter (program: Expression, source: String = "") {
 
-  def run(state: State = State()): Value = interp(program, state)._1
+  def run(state: State = State()): Either[Exception, Value] =
+    try Right(interp(program, state)._1)
+    catch case e: Exception => Left(e)
 
   private def getSourceLine(line: Int): String =
     source.linesIterator.drop(line - 1).nextOption().getOrElse("")
@@ -83,11 +85,11 @@ class Interpreter (program: Expression, source: String = "") {
       case Prot(b, e) =>
         interp(e, state.withPC(state.pc ⊔ b))
 
-      case New(t, b, e) =>
-        val (v, state1) = interp(e, state)
+      case New(t, b, innerExpr) =>
+        val (v, state1) = interp(innerExpr, state)
 
         val loc = FreshLoc()
-        val blameLabel = FreshBlame()
+        val blameLabel = FreshBlame("alloc", e.pos.line, e.pos.column, getSourceLine(e.pos.line))
 
         (
           Value(Loc(loc, t, blameLabel), b),
