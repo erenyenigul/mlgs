@@ -1,11 +1,14 @@
 import lang.*
 
 import scala.util.parsing.combinator.*
+import lang.SecurityLevel.*
+import lang.TypeAnnotation.*
 import util.FreshBlame
 
 object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
+  private val keywords = Set("in", "let", "fn", "new", "prot", "ref", "int", "unit", "low", "high")
 
   def run(input: String): Either[Exception, (Expression, String)] =
     try
@@ -78,7 +81,7 @@ object Parser extends JavaTokenParsers {
     "(" ~> expression <~ ")"
 
 
-  private def value: Parser[Value] =
+  private def value: Parser[Value] = {
     rawValue ~ opt("@" ~> securityLevel) ^^ {
       case w ~ Some(explicitLevel) =>
        Value(w, explicitLevel)
@@ -86,9 +89,20 @@ object Parser extends JavaTokenParsers {
       case w ~ None =>
         Value(w, SecurityLevel.L)
     }
+    | lambda
+  }
+
+  private def lambda: Parser[Value] =
+    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ ("->" ~> atomExpression) ^^ {
+      case xVar ~ paramType ~ pc ~ body =>
+        val concreteLevel = pc match
+          case Static(l) => l
+          case Dyn => SecurityLevel.L
+        Value(RawValue.Lambda(xVar, paramType, pc, body), concreteLevel)
+    }
 
   def rawValue: Parser[RawValue] =
-    constant | unit | lambda
+    constant | unit
 
   private def unit: Parser[RawValue] =
     "(" ~ ")" ^^^ RawValue.Unit
@@ -96,13 +110,10 @@ object Parser extends JavaTokenParsers {
   private def constant: Parser[RawValue.Const] =
     """\d+""".r ^^ { numericStr => RawValue.Const(numericStr.toInt) }
 
-  private def lambda: Parser[RawValue.Lambda] =
-    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ ("->" ~> atomExpression) ^^ {
-      case xVar ~ paramType ~ pc ~ body => RawValue.Lambda(xVar, paramType, pc, body)
-    }
+
 
   private def variable: Parser[Variable] =
-    not("in" | "let" | "fn" | "new" | "prot" | "ref" | "int" | "unit" | "low" | "high") ~> ident ^^ Variable.apply
+    ident.filter(s => !keywords.contains(s)) ^^ Variable.apply
 
   private def _type: Parser[Type] =
     (rawType <~ "@") ~ typeAnnotation ^^ {
@@ -110,12 +121,12 @@ object Parser extends JavaTokenParsers {
     }
 
   private def rawType: Parser[RawType] =
-      "int" ^^^ RawType.IntType |
+    "int" ^^^ RawType.IntType |
       "unit" ^^^ RawType.UnitType |
-      (_type <~ "->") ~ typeAnnotation ~ _type ^^ {
+      "ref" ~> "(" ~> _type <~ ")" ^^ RawType.RefType.apply |
+      "(" ~> (_type <~ "->") ~ typeAnnotation ~ _type <~ ")" ^^ {
         case from ~ pc ~ to => RawType.FuncType(from, pc, to)
-      } |
-      "ref" ~> _type ^^ RawType.RefType.apply
+      }
 
   private def typeAnnotation: Parser[TypeAnnotation] =
     securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn

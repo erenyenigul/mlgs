@@ -26,6 +26,10 @@ class Interpreter (program: Expression, source: String = "") {
   private def subst(in: Expression, id: Variable, v: Value) : Expression =
     def rebuild(node: Expression, result: Expression): Expression = result.setPos(node.pos)
     in match {
+      case node @ Val(Value(Lambda(x, paramType, pc, e), b)) => if x == id then
+        node
+      else
+        rebuild(node, Val(Value(Lambda(x, paramType, pc, rebuild(e, subst(e, id, v))), b)))
       case node @ Val(_) => node
       case node @ Var(x) => if x == id then rebuild(node, Val(v)) else node
       case node @ Apply(target, arg) => rebuild(node, Apply(subst(target, id, v), subst(arg, id, v)))
@@ -48,7 +52,9 @@ class Interpreter (program: Expression, source: String = "") {
       case Static(_) => t
       case Dyn       => Type(t.s, Static(v.B))
 
-  private def interp(e: Expression, state: State) : (Value, State) =
+  private def interp(e: Expression, state: State) : (Value, State) = {
+    println(e)
+    println(state)
     e match {
       case Val(v) => (v, state)
       case Apply(target, arg) =>
@@ -75,6 +81,10 @@ class Interpreter (program: Expression, source: String = "") {
         val loc = FreshLoc()
         val blameLabel = FreshBlame("alloc", e.pos.line, e.pos.column, getSourceLine(e.pos.line))
 
+        val declaredLevel = resolvedT.annotation match
+          case Static(l) => l
+          case Dyn => v.B // can't happen after resolveType
+
         (
           Value(Loc(loc, resolvedT, blameLabel), b),
           state1.withAllocation(
@@ -82,7 +92,7 @@ class Interpreter (program: Expression, source: String = "") {
             HeapCell(
               resolvedT,
               blameLabel,
-              Value(v.w, v.B ⊔ state1.pc)
+              Value(v.w, v.B ⊔ state1.pc ⊔ declaredLevel)
             ))
         )
 
@@ -146,4 +156,5 @@ class Interpreter (program: Expression, source: String = "") {
         val (_, state1) = interp(e1, state)
         interp(e2, state1)
     }
+  }
 }

@@ -42,7 +42,7 @@ class TypeChecker(program: Expression, source: String = "") {
               case None => errorAt(e, InvalidMemoryLocation(l))
             }
           case Lambda(Variable(id), t, pc_, body) =>
-            val t_ = infer(body, context.withVariable(id, t))
+            val t_ = infer(body, context.withVariable(id, t).withPC(pc_))
             Type(FuncType(t, pc_, t_), Static(b))
         }
       case Apply(e1, e2) =>

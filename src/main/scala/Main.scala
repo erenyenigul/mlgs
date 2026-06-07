@@ -7,9 +7,14 @@ import runtime.Interpreter
 def main(): Unit = {
     val source =
       """
-        |  let z = (new(int@high, low) 5@low) in
-        |  z := 5@high;
-        |  z
+        |let infoH = new(int@high, low) 42@high in
+        |let addPrivileged = fn isPrivileged : int@? @ ? ->
+        |  fn worker : ref(int@?)@? @ ? ->
+        |    fn report : ref(int@?)@? @ ? ->
+        |      (report := !infoH)
+        |in
+        |let buf = new(int@low, low) 0@low in
+        |((addPrivileged 0@low) ({ref(int@?)@? <= ref(int@low)@low} buf)) ({ref(int@?)@? <= ref(int@low)@low} buf);
         |""".stripMargin
 
     val result = for
@@ -20,6 +25,6 @@ def main(): Unit = {
     yield res
 
     result match
-      case Left(e)    => println(e.getMessage)
+      case Left(e)    => throw (e)
       case Right(res) => pprintln(res)
 }
