@@ -95,7 +95,7 @@ class Interpreter (program: Expression, source: String = "") {
 
             cell match {
               case Some(HeapCell(t2, p, v)) => interp(
-                Prot(b, Cast(t2_, t2, p.concat(q), Val(v)).setPos(e.pos)),
+                Prot(b, Cast(t2_, t2, p.concat(q), Val(v)).setPos(e.pos)).setPos(e.pos),
                 state1
               )
             }
