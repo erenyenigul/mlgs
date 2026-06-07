@@ -4,7 +4,7 @@ import lang.*
 case class TypeErrorAt(error: TypeError, line: Int, col: Int, sourceLine: String) extends Exception:
   override def getMessage: String =
     val caret = " " * (col - 1) + "^"
-    s"${error.getMessage}\n${line} |${sourceLine}\n   ${caret}"
+    s"Type Error: ${error.getMessage}\n${line} |${sourceLine}\n   ${caret}"
 
 enum TypeError extends Exception:
   case StructuralMismatch(expected: RawType, found: RawType)
@@ -20,22 +20,22 @@ enum TypeError extends Exception:
 
   override def getMessage: String = this match
     case StructuralMismatch(exp, fnd) =>
-      s"Static Type Error: Structural mismatch. Expected ${exp}, but found ${fnd}."
+      s"Structural mismatch. Expected ${exp}, but found ${fnd}."
     case TypeMismatch(exp, fnd) =>
-      s"Static Type Error: Type mismatch. Expected ${exp}, but found ${fnd}."
+      s"Type mismatch. Expected ${exp}, but found ${fnd}."
     case ExpectedRefType(fnd) =>
-      s"Static Type Error: Expected a reference, but found ${fnd}"
+      s"Expected a reference, but found ${fnd}"
     case SecurityFlowViolation(exp, fnd) =>
-      s"Static Security Error: Illegal flow. Cannot unify tier ${fnd} into ${exp}."
+      s"Security Error: Illegal flow. Cannot unify tier ${fnd} into ${exp}."
     case ProgramCounterViolation(pc, eff) =>
-      s"Static Security Error: Side effect at level ${eff} is forbidden under PC context (${pc})."
+      s"Security Error: Side effect at level ${eff} is forbidden under PC context (${pc})."
     case ReferenceInvarianceViolation(t1, t2) =>
-      s"Static Type Error: References must be invariant. ${t1} and ${t2} must match exactly."
+      s"References must be invariant. ${t1} and ${t2} must match exactly."
     case IncompatibleCast(from, to) =>
-      s"Static Type Error: Invalid cast from ${from} to ${to}. Underlying structures must be compatible."
+      s"Invalid cast from ${from} to ${to}. Underlying structures must be compatible."
     case UnboundVariable(name) =>
-      s"Static Scope Error: Variable '$name' is not defined in the current environment."
+      s"Variable '$name' is not defined in the current environment."
     case InvalidMemoryLocation(loc) =>
-      s"Runtime Memory Error: Attempted to access non-existing or unallocated heap location '$loc'."
+      s"Attempted to access non-existing or unallocated heap location '$loc'."
     case CannotApplyNonFunction(found) =>
-      s"Static Type Error: Tried to call a non-function. It is a ${found}"
+      s"Tried to call a non-function. It is a ${found}"

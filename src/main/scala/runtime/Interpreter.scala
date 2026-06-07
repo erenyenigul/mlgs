@@ -23,47 +23,25 @@ class Interpreter (program: Expression, source: String = "") {
     if pos == NoPosition then throw err
     else throw InterpreterErrorAt(err, pos.line, pos.column, getSourceLine(pos.line))
 
-  private def subst(in: Expression, id: Variable, v: Value) : Expression = in match {
-    case Val(w) => Val(w)
-    case Var(x) => if x == id then Val(v) else Var(x)
-    case Apply(target: Expression, arg: Expression) => Apply(
-      subst(target, id, v), subst(arg, id, v)
-    )
-
-    case New(t: Type, B: SecurityLevel, e: Expression) => New(
-      t, B, subst(e, id, v)
-    )
-    case Bang(e: Expression) => Bang(
-      subst(e, id, v)
-    )
-    case Assign(lhs: Expression, rhs: Expression) => Assign(
-      subst(lhs, id, v),
-      subst(rhs, id, v),
-    )
-    case Cast(to: Type, from: Type, p: BlameLabel, e: Expression) => Cast(
-      to, from, p, subst(e, id, v)
-    )
-    case Prot(B: SecurityLevel, e: Expression) => Prot(B, subst(e, id, v))
-    case GuardCast(to: TypeAnnotation, from: TypeAnnotation, p: BlameLabel, e: Expression) => GuardCast(
-      to, from, p, subst(e, id, v)
-    )
-    case PointerCast(to: TypeAnnotation, from: TypeAnnotation, p: BlameLabel, e: Expression) => PointerCast(
-      to, from, p, subst(e, id, v)
-      )
-    case FunctionGuardCast(to: TypeAnnotation, from: TypeAnnotation, p: BlameLabel, e: Expression) => FunctionGuardCast(
-      to, from, p, subst(e, id, v)
-      )
-
-    // sugar
-    case Let(x, e1, e2) =>
-      if x == id then Let(x, subst(e1, id, v), e2)
-      else Let(x, subst(e1, id, v), subst(e2, id, v))
-
-    case Seq(e1: Expression, e2: Expression) => Seq(
-      subst(e1, id, v),
-      subst(e2, id, v),
-    )
-  }
+  private def subst(in: Expression, id: Variable, v: Value) : Expression =
+    def rebuild(node: Expression, result: Expression): Expression = result.setPos(node.pos)
+    in match {
+      case node @ Val(_) => node
+      case node @ Var(x) => if x == id then rebuild(node, Val(v)) else node
+      case node @ Apply(target, arg) => rebuild(node, Apply(subst(target, id, v), subst(arg, id, v)))
+      case node @ New(t, b, e) => rebuild(node, New(t, b, subst(e, id, v)))
+      case node @ Bang(e) => rebuild(node, Bang(subst(e, id, v)))
+      case node @ Assign(lhs, rhs) => rebuild(node, Assign(subst(lhs, id, v), subst(rhs, id, v)))
+      case node @ Cast(to, from, p, e) => rebuild(node, Cast(to, from, p, subst(e, id, v)))
+      case node @ Prot(b, e) => rebuild(node, Prot(b, subst(e, id, v)))
+      case node @ GuardCast(to, from, p, e) => rebuild(node, GuardCast(to, from, p, subst(e, id, v)))
+      case node @ PointerCast(to, from, p, e) => rebuild(node, PointerCast(to, from, p, subst(e, id, v)))
+      case node @ FunctionGuardCast(to, from, p, e) => rebuild(node, FunctionGuardCast(to, from, p, subst(e, id, v)))
+      case node @ Let(x, e1, e2) =>
+        if x == id then rebuild(node, Let(x, subst(e1, id, v), e2))
+        else rebuild(node, Let(x, subst(e1, id, v), subst(e2, id, v)))
+      case node @ Seq(e1, e2) => rebuild(node, Seq(subst(e1, id, v), subst(e2, id, v)))
+    }
 
   private def resolveType(t: Type, v: Value): Type =
     t.annotation match
@@ -108,8 +86,8 @@ class Interpreter (program: Expression, source: String = "") {
             ))
         )
 
-      case Bang(e) =>
-        val (Value(w, b), state1) = interp(e, state)
+      case Bang(innerE) =>
+        val (Value(w, b), state1) = interp(innerE, state)
 
         w match {
           case Loc(l, t2_, q) =>
@@ -117,7 +95,7 @@ class Interpreter (program: Expression, source: String = "") {
 
             cell match {
               case Some(HeapCell(t2, p, v)) => interp(
-                Prot(b, Cast(t2_, t2, p.concat(q), Val(v))),
+                Prot(b, Cast(t2_, t2, p.concat(q), Val(v)).setPos(e.pos)),
                 state1
               )
             }
@@ -147,8 +125,8 @@ class Interpreter (program: Expression, source: String = "") {
           case None => errorAt(lhs, BlameError(q))
         }
 
-      case Cast(Type(s1,b1), Type(s2,b2), p, e) =>
-        val (Value(w2, b), state1) = interp(e, state)
+      case Cast(Type(s1,b1), Type(s2,b2), p, innerE) =>
+        val (Value(w2, b), state1) = interp(innerE, state)
 
         val w1 = w2.propagate(s1, s2, p)
 
