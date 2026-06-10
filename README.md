@@ -23,7 +23,17 @@ let w = {ref Report^? ^? -> unit} sendToFacebook in
 - **Type checker**: implements the gradual security type system (Fig. 2), including
   subtyping, compatibility, and security level constraints on effects and program counter
 
-## Not implemented
-- Operational semantics and reduction rules
-- Runtime guard/pointer/function casts (runtime-only constructs per the paper)
-- Blame tracking
+## TODO
+- Implicit security type : If nothing is specified, assume L. e.g. int => int[L], or ref<i>
+- Security level denoted by square brackets: e.g. int[H], int[L], int[?]
+- Reference with ref<type>. e.g. ref<int> => ref[L]<int[L]> or ref[H]<int>
+- Function accepts both effect level and function value level
+- casts are done using `as type` syntax instead of `cast()`
+- Casts don't need source type. Just provide target type. I don't know if its possible.
+- Values should reside in the AST. They should be generated in interp time. So, with that, you must have a LambdaExp and Lambda Raw Value. One is annotated, and the other is not annotated, used as a runtime value
+- Do I allow subtyping?  Check below:
+>The system also supports
+  standard security subtyping [14], [21] which allows low-
+  security information to be implicitly promoted to a high
+  security level and functions with high-security pc to be
+- Actual sugaring of let and `;`.  Compile to lambda.
