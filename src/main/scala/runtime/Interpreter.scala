@@ -66,16 +66,18 @@ class Interpreter (program: Expression, source: String = "") {
         f match {
           case Lambda(x, paramType, pc, body) =>
             interp(
-              Prot(b, subst(body, x, v)), state
+              Prot(b, subst(body, x, v)), state2
             )
             // other cases must be handled by type checker
         }
 
-      case Prot(b, Val(Value(w, b_))) => (Value(w, b ⊔ b_), state)
+      case Prot(b, Val(Value(w, b_))) =>
+        (Value(w, b ⊔ b_), state)
 
       case Prot(b, e) =>
         val (v, state1) = interp(e, state.withPC(state.pc ⊔ b))
-        interp(Prot(b, Val(v)), state1)
+        val finalState = state1.withPC(state.pc)
+        interp(Prot(b, Val(v)), finalState)
 
       case New(t, b, innerExpr) =>
         val (v, state1) = interp(innerExpr, state)
