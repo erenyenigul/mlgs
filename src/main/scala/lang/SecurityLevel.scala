@@ -5,8 +5,8 @@ enum SecurityLevel:
   case H
 
   override def toString: String = this match
-    case L => "low"
-    case H => "high"
+    case L => "L"
+    case H => "H"
 
 object SecurityLevel:
   extension (a: SecurityLevel)

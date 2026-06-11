@@ -38,7 +38,11 @@ class TypeChecker(program: Expression, source: String = "") {
           case Unit => Type(UnitType, Static(b))
           case Loc(l, t_, p) =>
             context.addressEnv.get(l) match {
-              case Some(t) => Type(RefType(t_), Static(b))
+              case Some(t) =>
+                if (!Type.compatible(t, t_)) {
+                  errorAt(e, TypeMismatch(t, t_))
+                }
+                Type(RefType(t_), Static(b))
               case None => errorAt(e, InvalidMemoryLocation(l))
             }
           case Lambda(Variable(id), t, pc_, body) =>
@@ -79,7 +83,7 @@ class TypeChecker(program: Expression, source: String = "") {
         Type(RefType(t), Static(b))
 
       case Prot(b, e2) =>
-        val te = infer(e2, context)
+        val te = infer(e2, context.withPC(context.pc ⊔ Static(b)))
         Type(te.s, te.annotation ⊔ Static(b))
 
       case Bang(e2) =>
@@ -122,6 +126,17 @@ class TypeChecker(program: Expression, source: String = "") {
         }
 
         t_
+
+      case LambdaExp(x, paramType, pc, valueLevel, body) =>
+        val bodyType = infer(body, context.withVariable(x.id, paramType).withPC(pc))
+        Type(FuncType(paramType, pc, bodyType), Static(valueLevel))
+
+      case UntypedCast(to, p, e2) =>
+        val from = infer(e2, context)
+        if (!Type.compatible(from, to)) {
+          errorAt(e, IncompatibleCast(from, to))
+        }
+        to
 
       /*
       case lang.Expression.GuardCast(_, _, _, _) => ???

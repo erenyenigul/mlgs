@@ -9,5 +9,5 @@ enum RawType:
   override def toString: String = this match
     case IntType => "int"
     case UnitType => "unit"
-    case RefType(to) => s"&$to"
+    case RefType(to) => s"ref<$to>"
     case FuncType(f, pc, t) => s"($f ->$pc $t)"

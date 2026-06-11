@@ -36,4 +36,3 @@ let w = {ref Report^? ^? -> unit} sendToFacebook in
   standard security subtyping [14], [21] which allows low-
   security information to be implicitly promoted to a high
   security level and functions with high-security pc to be
-- Actual sugaring of let and `;`.  Compile to lambda.

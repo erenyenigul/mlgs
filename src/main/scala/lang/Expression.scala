@@ -15,6 +15,10 @@ enum Expression extends scala.util.parsing.input.Positional:
   case FunctionGuardCast(to: TypeAnnotation, from: TypeAnnotation, p: BlameLabel, e: Expression)
 
 
+  case LambdaExp(x: Variable, paramType: Type, pc: TypeAnnotation, valueLevel: SecurityLevel, e: Expression)
+
+  case UntypedCast(to: Type, p: BlameLabel, e: Expression)
+
   // sugar
   case Let(x: Variable, e1: Expression, e2: Expression)
   case Seq(e1: Expression, e2: Expression)

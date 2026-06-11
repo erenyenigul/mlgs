@@ -5,8 +5,8 @@ enum TypeAnnotation:
   case Dyn
 
   override def toString: String = this match
-    case Static(level) => level.toString
-    case Dyn => "?"
+    case Static(level) => "[" ++ level.toString ++ "]"
+    case Dyn => "[?]"
 
 object TypeAnnotation:
   extension (a: TypeAnnotation)

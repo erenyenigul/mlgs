@@ -45,6 +45,10 @@ class Interpreter (program: Expression, source: String = "") {
         if x == id then rebuild(node, Let(x, subst(e1, id, v), e2))
         else rebuild(node, Let(x, subst(e1, id, v), subst(e2, id, v)))
       case node @ Seq(e1, e2) => rebuild(node, Seq(subst(e1, id, v), subst(e2, id, v)))
+      case node @ LambdaExp(x, paramType, pc, vl, e) =>
+        if x == id then node
+        else rebuild(node, LambdaExp(x, paramType, pc, vl, rebuild(e, subst(e, id, v))))
+      case node @ UntypedCast(to, p, e) => rebuild(node, UntypedCast(to, p, subst(e, id, v)))
     }
 
   private def resolveType(t: Type, v: Value): Type =
@@ -53,8 +57,6 @@ class Interpreter (program: Expression, source: String = "") {
       case Dyn       => Type(t.s, Static(v.B))
 
   private def interp(e: Expression, state: State) : (Value, State) = {
-    println(e)
-    println(state)
     e match {
       case Val(v) => (v, state)
       case Apply(target, arg) =>
@@ -72,7 +74,8 @@ class Interpreter (program: Expression, source: String = "") {
       case Prot(b, Val(Value(w, b_))) => (Value(w, b ⊔ b_), state)
 
       case Prot(b, e) =>
-        interp(e, state.withPC(state.pc ⊔ b))
+        val (v, state1) = interp(e, state.withPC(state.pc ⊔ b))
+        interp(Prot(b, Val(v)), state1)
 
       case New(t, b, innerExpr) =>
         val (v, state1) = interp(innerExpr, state)
@@ -148,6 +151,20 @@ class Interpreter (program: Expression, source: String = "") {
 
             (Value(w1, b ⊔ b1_), state1)
 
+      case LambdaExp(x, paramType, pc, valueLevel, body) =>
+        (Value(Lambda(x, paramType, pc, body), valueLevel), state)
+
+      case UntypedCast(Type(s1, b1), p, innerE) =>
+        val (Value(w2, b), state1) = interp(innerE, state)
+        val s2 = inferRawType(w2, s1)
+        val w1 = w2.propagate(s1, s2, p)
+        b1 match
+          case Dyn =>
+            (Value(w1, b), state1)
+          case Static(b1_) =>
+            if !(b ⊑ b1_) then errorAt(e, BlameError(p))
+            (Value(w1, b ⊔ b1_), state1)
+
       case Let(x, e1, e2) =>
         val (v, state1) = interp(e1, state)
         interp(subst(e2, x, v), state1)
@@ -155,6 +172,13 @@ class Interpreter (program: Expression, source: String = "") {
       case Seq(e1, e2) =>
         val (_, state1) = interp(e1, state)
         interp(e2, state1)
+
     }
   }
+
+  private def inferRawType(w: RawValue, toRaw: RawType): RawType = w match
+    case Const(_)           => RawType.IntType
+    case Unit               => RawType.UnitType
+    case Loc(_, t, _)       => RawType.RefType(t)
+    case Lambda(_, _, _, _) => toRaw
 }

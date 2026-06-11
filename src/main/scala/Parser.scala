@@ -8,7 +8,7 @@ import util.FreshBlame
 object Parser extends JavaTokenParsers {
 
   override def skipWhitespace = true
-  private val keywords = Set("in", "let", "fn", "new", "prot", "ref", "int", "unit", "low", "high")
+  private val keywords = Set("in", "let", "fn", "lambda", "new", "prot", "ref", "int", "unit", "L", "H", "as")
 
   def run(input: String): Either[Exception, (Expression, String)] =
     try
@@ -36,15 +36,35 @@ object Parser extends JavaTokenParsers {
   }
 
   private def program: Parser[Expression] = anyExpr
-  private def anyExpr: Parser[Expression] = sugar | expression
+  private def anyExpr: Parser[Expression] = fnDef | letBinding | exprThenOpt
 
-  private def sugar: Parser[Expression] =
-    positioned("let" ~> variable ~ ("=" ~> anyExpr) ~ ("in" ~> anyExpr) ^^ {
+  private def fnDef: Parser[Expression] =
+    positioned("fn" ~> opt("[" ~> securityLevel <~ "]") ~ variable ~ paramList ~ ("-[" ~> annotationContent <~ "]->") ~ ("{" ~> anyExpr <~ "}") ~ (";" ~> anyExpr) ^^ {
+      case vl ~ name ~ params ~ pc ~ body ~ rest =>
+        Expression.Let(name, desugarParams(params, pc, vl.getOrElse(L), body), rest)
+    })
+
+  private def letBinding: Parser[Expression] =
+    positioned("let" ~> variable ~ ("=" ~> expression) ~ (";" ~> anyExpr) ^^ {
       case v ~ e1 ~ e2 => Expression.Let(v, e1, e2)
-    }) |
-      positioned(expression ~ (";" ~> anyExpr) ^^ {
-        case e1 ~ e2 => Expression.Seq(e1, e2)
-      })
+    })
+
+  // expression optionally followed by "; rest" (sequencing), or standalone
+  private def exprThenOpt: Parser[Expression] =
+    positioned(expression ~ opt(";" ~> anyExpr) ^^ {
+      case e ~ None       => e
+      case e ~ Some(rest) => Expression.Seq(e, rest)
+    })
+
+  private def paramList: Parser[List[Variable ~ Type]] =
+    "(" ~> rep1sep(variable ~ (":" ~> _type), ",") <~ ")"
+
+  private def desugarParams(params: List[Variable ~ Type], pc: TypeAnnotation, outerLevel: SecurityLevel, body: Expression): Expression =
+    params match
+      case (x ~ t) :: Nil  => Expression.LambdaExp(x, t, pc, outerLevel, body)
+      case (x ~ t) :: rest => Expression.LambdaExp(x, t, pc, outerLevel, desugarParams(rest, pc, outerLevel, body))
+      case Nil             => body
+
 
   private def expression: Parser[Expression] =
       assign |
@@ -60,45 +80,47 @@ object Parser extends JavaTokenParsers {
       case t ~ b ~ e => Expression.New(t, b, e)
     }) |
       positioned("!" ~> simpleExpression ^^ Expression.Bang.apply) |
-      positioned(currentPosition ~ ("{" ~> _type) ~ ("<=" ~> _type <~ "}") ~ simpleExpression ^^ {
-        case (line, col, srcLine) ~ to ~ from ~ e =>
-          Expression.Cast(to, from, FreshBlame("cast", line, col, srcLine), e)
-      }) |
       positioned("prot" ~> securityLevel ~ simpleExpression ^^ {
         case b ~ e => Expression.Prot(b, e)
       }) |
-      positioned(atomExpression ~ atomExpression ^^ {
-        case e1 ~ e2 => Expression.Apply(e1, e2)
-      }) |
-      atomExpression
+      appOrCastChain
 
-  private def atomExpression: Parser[Expression] =
-    positioned(value ^^ Expression.Val.apply) |
-      positioned(variable ^^ Expression.Var.apply) |
-      positioned(("(" ~> rawValue <~ ")") ~ ("@" ~> securityLevel) ^^ {
-        case w ~ b => Expression.Val(Value(w, b))
-      }) |
-    "(" ~> expression <~ ")"
-
-
-  private def value: Parser[Value] = {
-    rawValue ~ opt("@" ~> securityLevel) ^^ {
-      case w ~ Some(explicitLevel) =>
-       Value(w, explicitLevel)
-
-      case w ~ None =>
-        Value(w, SecurityLevel.L)
-    }
-    | lambda
+  private def appOrCastChain: Parser[Expression] = {
+    positioned(currentPosition ~ atomExpression ~ rep(appOrCastSuffix) ^^ {
+      case pos ~ head ~ suffixes =>
+        suffixes.foldLeft(head) {
+          case (acc, Left(arg))               => Expression.Apply(acc, arg).setPos(acc.pos)
+          case (acc, Right((t, line, col, srcLine))) =>
+            Expression.UntypedCast(t, FreshBlame("cast", line, col, srcLine), acc).setPos(acc.pos)
+        }
+    })
   }
 
-  private def lambda: Parser[Value] =
-    ("λ" | "fn") ~> variable ~ (":" ~> _type) ~ ("@" ~> typeAnnotation) ~ ("->" ~> atomExpression) ^^ {
-      case xVar ~ paramType ~ pc ~ body =>
-        val concreteLevel = pc match
-          case Static(l) => l
-          case Dyn => SecurityLevel.L
-        Value(RawValue.Lambda(xVar, paramType, pc, body), concreteLevel)
+  private def appOrCastSuffix: Parser[Either[Expression, (Type, Int, Int, String)]] =
+    (currentPosition ~ ("as" ~> _type) ^^ {
+      case (line, col, srcLine) ~ t => Right((t, line, col, srcLine))
+    }) |
+    (atomExpression ^^ { e => Left(e) })
+
+  private def atomExpression: Parser[Expression] =
+    positioned(lambda) |
+      positioned(rawValue ~ opt(typeAnnotation) ^^ {
+        case w ~ ann =>
+          val level = ann match
+            case Some(Static(l)) => l
+            case _               => SecurityLevel.L
+          Expression.Val(Value(w, level))
+      }) |
+      positioned(variable ^^ Expression.Var.apply) |
+      "(" ~> expression <~ ")"
+
+  private def annotationContent: Parser[TypeAnnotation] =
+    securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn
+
+  private def lambda: Parser[Expression] =
+    ("λ" | "lambda") ~> opt("[" ~> securityLevel <~ "]") ~ paramList ~ ("-[" ~> annotationContent <~ "]->") ~ ("{" ~> anyExpr <~ "}") ^^ {
+      case vl ~ params ~ pc ~ body =>
+        desugarParams(params, pc, vl.getOrElse(L), body)
     }
 
   def rawValue: Parser[RawValue] =
@@ -110,27 +132,34 @@ object Parser extends JavaTokenParsers {
   private def constant: Parser[RawValue.Const] =
     """\d+""".r ^^ { numericStr => RawValue.Const(numericStr.toInt) }
 
-
-
   private def variable: Parser[Variable] =
     ident.filter(s => !keywords.contains(s)) ^^ Variable.apply
 
+  // _type returns a full Type (RawType + annotation, defaulting to Static(L))
+  // ref is handled here specially to capture optional annotation before <...>
   private def _type: Parser[Type] =
-    (rawType <~ "@") ~ typeAnnotation ^^ {
-      case s ~ b => Type(s, b)
+    refType |
+    (simpleRawType ~ opt(typeAnnotation) ^^ {
+      case s ~ ann => Type(s, ann.getOrElse(Static(L)))
+    })
+
+  // ref with optional annotation then angle-bracket inner type
+  // Syntax: ref[ann]<inner> or ref<inner>
+  private def refType: Parser[Type] =
+    "ref" ~> opt(typeAnnotation) ~ ("<" ~> _type <~ ">") ^^ {
+      case ann ~ inner => Type(RawType.RefType(inner), ann.getOrElse(Static(L)))
     }
 
-  private def rawType: Parser[RawType] =
+  private def simpleRawType: Parser[RawType] =
     "int" ^^^ RawType.IntType |
       "unit" ^^^ RawType.UnitType |
-      "ref" ~> "(" ~> _type <~ ")" ^^ RawType.RefType.apply |
-      "(" ~> (_type <~ "->") ~ typeAnnotation ~ _type <~ ")" ^^ {
+      "(" ~> _type ~ ("-[" ~> annotationContent <~ "]->") ~ _type <~ ")" ^^ {
         case from ~ pc ~ to => RawType.FuncType(from, pc, to)
       }
 
   private def typeAnnotation: Parser[TypeAnnotation] =
-    securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn
+    "[" ~> (securityLevel ^^ TypeAnnotation.Static.apply | "?" ^^^ TypeAnnotation.Dyn) <~ "]"
 
   private def securityLevel: Parser[SecurityLevel] =
-    "low" ^^^ SecurityLevel.L | "high" ^^^ SecurityLevel.H
+    "H" ^^^ SecurityLevel.H | "L" ^^^ SecurityLevel.L
 }

@@ -129,19 +129,19 @@ object Tests:
 
     // T-Cast: compatible cast L to H
     "cast int L to H" -> (() =>
-      val e = Cast(intT(H), intT(L), List(BlameId("p")), int(5))
+      val e = Cast(intT(H), intT(L), Set(BlameId("p")), int(5))
       assert(TypeChecker(e).run(ctx) == intT(H))
       ),
 
     // T-Cast: incompatible cast int to ref
     "incompatible cast" -> (() =>
-      val e = Cast(refT(L, intT(L)), intT(L), List(BlameId("p")), int(5))
+      val e = Cast(refT(L, intT(L)), intT(L), Set(BlameId("p")), int(5))
       assertThrows[static.TypeError](TypeChecker(e).run(ctx))
       ),
 
     // T-Cast: cast to dynamic
     "cast to dynamic" -> (() =>
-      val e = Cast(Type(IntType, Dyn), intT(L), List(BlameId("p")), int(5))
+      val e = Cast(Type(IntType, Dyn), intT(L), Set(BlameId("p")), int(5))
       assert(TypeChecker(e).run(ctx) == Type(IntType, Dyn))
       ),
 
@@ -177,7 +177,7 @@ object Tests:
         Cast(
           funT(refT(L, Type(IntType, Dyn)), Dyn, refT(L, Type(IntType, Dyn)), L),
           funT(refT(L, reportT), Static(L), refT(L, reportT), L),
-          List(BlameId("p")),
+          Set(BlameId("p")),
           sendToFacebook
         ),
         Var(Variable("w"))

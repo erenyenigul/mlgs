@@ -7,14 +7,8 @@ import runtime.Interpreter
 def main(): Unit = {
     val source =
       """
-        |let infoH = new(int@high, low) 42@high in
-        |let addPrivileged = fn isPrivileged : int@? @ ? ->
-        |  fn worker : ref(int@?)@? @ ? ->
-        |    fn report : ref(int@?)@? @ ? ->
-        |      (report := !infoH)
-        |in
-        |let buf = new(int@low, low) 0@low in
-        |((addPrivileged 0@low) ({ref(int@?)@? <= ref(int@low)@low} buf)) ({ref(int@?)@? <= ref(int@low)@low} buf);
+        |let infoH = 42[H];
+        |42[H] as int[?] as int[L]
         |""".stripMargin
 
     val result = for

@@ -3,7 +3,7 @@ package lang
 import lang.TypeAnnotation.Dyn
 
 case class Type(s: RawType, annotation: TypeAnnotation):
-  override def toString: String = s"$s@$annotation"
+  override def toString: String = s"$s$annotation"
 
 object Type:
   def compatible(a: Type, b: Type): Boolean = (a.s, b.s) match
