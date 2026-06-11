@@ -1,0 +1,12 @@
+fn id (x: int[L]) -[L]-> { x };
+
+fn apply_to_5 (f: (int[L] -[L]-> int[L])[L]) -[L]-> {
+    f(5[L])
+};
+
+let apply_h = cast<
+    ((int[L] -[L]-> int[L])[L] -[H]-> int[L])[L],
+    ((int[L] -[L]-> int[L])[L] -[L]-> int[L])[L]
+>(apply_to_5);
+
+apply_h(id)

@@ -140,6 +140,52 @@ class Interpreter (program: Expression, source: String = "") {
           case None => errorAt(lhs, BlameError(q))
         }
 
+      case GuardCast(to, from, p, innerE) =>
+        innerE match
+          case Val(v) => (v, state)
+
+          case GuardCast(to2, from2, q, inner) =>
+            interp(GuardCast(to, from2, p.concat(q), inner), state)
+
+          case New(t, b, inner) =>
+            interp(New(Type(t.s, t.annotation ⊔ to), b, GuardCast(to, from, p, inner)), state)
+
+          case Assign(lhs, rhs) =>
+            interp(
+              Assign(
+                PointerCast(to, from, p, GuardCast(to, from, p, lhs)),
+                GuardCast(to, from, p, rhs)
+              ),
+              state
+            )
+
+          case Apply(e1, e2) =>
+            interp(
+              Apply(
+                FunctionGuardCast(to, from, p, GuardCast(to, from, p, e1)),
+                GuardCast(to, from, p, e2)
+              ),
+              state
+            )
+
+          case _ =>
+            val (v, state1) = interp(innerE, state)
+            interp(GuardCast(to, from, p, Val(v)), state1)
+
+      case FunctionGuardCast(to, from, p, innerE) =>
+        val (Value(w, b), state1) = interp(innerE, state)
+        w match
+          case Lambda(x, paramType, _, body) =>
+            (Value(Lambda(x, paramType, to, GuardCast(to, from, p, body)), b), state1)
+          case _ => throw new RuntimeException(s"FunctionGuardCast applied to non-lambda: $w")
+
+      case PointerCast(to, from, p, innerE) =>
+        val (Value(w, b), state1) = interp(innerE, state)
+        w match
+          case Loc(l, Type(s, annot), q) =>
+            (Value(Loc(l, Type(s, annot ⊔ to), p.concat(q)), b), state1)
+          case _ => throw new RuntimeException(s"PointerCast applied to non-pointer: $w")
+
       case Cast(Type(s1,b1), Type(s2,b2), p, innerE) =>
         val (Value(w2, b), state1) = interp(innerE, state)
 

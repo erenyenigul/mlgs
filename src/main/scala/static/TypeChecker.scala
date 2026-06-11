@@ -59,7 +59,7 @@ class TypeChecker(program: Expression, source: String = "") {
               errorAt(e, TypeMismatch(from, t2))
             }
             if !((context.pc ⊔ b) ⊑ pc) then
-              errorAt(e, ProgramCounterViolation(context.pc, pc))
+              errorAt(e, ProgramCounterViolation(context.pc ⊔ b, pc))
 
             Type(to.s, to.annotation ⊔ b)
 

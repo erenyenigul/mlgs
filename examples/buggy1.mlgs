@@ -1,1 +1,15 @@
-fn q (x: int[H]) -[H]-> { x }; q 5[L]
+let public = new[L]<int[L]>(5);
+let secret = new[L]<int[H]>(5);
+
+fn assign (to: ref<int[L]>, v: int[L]) -[L]-> {
+  to := v
+};
+
+fn[H] assign_secret (to: ref<int[?]>, v: int[?]) -[?]-> {
+  to := v;
+  public as ref<int[?]> := 5[L]
+};
+
+assign(public, 5);
+assign_secret(secret as ref[L]<int[?]>, 4);
+!secret

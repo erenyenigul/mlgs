@@ -1,0 +1,11 @@
+fn alloc (x: int[L]) -[L]-> {
+    new[L]<int[L]>(x)
+};
+
+let alloc_h = cast<
+    (int[L] -[H]-> ref[L]<int[H]>)[L],
+    (int[L] -[L]-> ref[L]<int[L]>)[L]
+>(alloc);
+
+let cell = alloc_h(5);
+!cell

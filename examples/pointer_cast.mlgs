@@ -1,0 +1,19 @@
+fn apply_writer (w: (int[H] -[?]-> unit[H])[L], x: int[H], y: ref<unit[L]>) -[?]-> {
+    (y as ref<unit[?]>) := w(x)
+};
+
+let r = new[L]<int[H]>(0[H]);
+
+fn writer (x: int[H]) -[H]-> { r := x };
+
+let writer_dyn = cast<
+    (int[H] -[?]-> unit[H])[L],
+    (int[H] -[H]-> unit[H])[L]
+>(writer);
+
+let apply = apply_writer(writer_dyn, 5[H]);
+
+let y = new[L]<unit[L]>(());
+
+apply(y);
+!y

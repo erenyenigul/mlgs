@@ -20,7 +20,7 @@ object RawValue:
         case (Unit, UnitType, UnitType) => Unit
 
         case (Loc(l, t1, q), RefType(t1_), RefType(_)) =>
-          Loc(l, t1_, p.concat(q))
+          Loc(l, t1_, q)
 
         case (Lambda(x, paramType, pc, body),
         FuncType(t1_, pc_, t2_),

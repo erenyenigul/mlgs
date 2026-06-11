@@ -76,12 +76,18 @@ object Parser extends JavaTokenParsers {
     })
 
   private def simpleExpression: Parser[Expression] =
-    positioned("new" ~> ("(" ~> _type) ~ ("," ~> securityLevel <~ ")") ~ simpleExpression ^^ {
-      case t ~ b ~ e => Expression.New(t, b, e)
+    positioned("new" ~> ("[" ~> securityLevel <~ "]") ~ ("<" ~> _type <~ ">") ~ ("(" ~> expression <~ ")") ^^ {
+      case b ~ t ~ e => Expression.New(t, b, e)
     }) |
       positioned("!" ~> simpleExpression ^^ Expression.Bang.apply) |
       positioned("prot" ~> securityLevel ~ simpleExpression ^^ {
         case b ~ e => Expression.Prot(b, e)
+      }) |
+      positioned(currentPosition ~ ("cast" ~> "<" ~> _type ~ opt("," ~> _type) <~ ">") ~ ("(" ~> expression <~ ")") ^^ {
+        case (line, col, srcLine) ~ (to ~ Some(from)) ~ e =>
+          Expression.Cast(to, from, FreshBlame("cast", line, col, srcLine), e)
+        case (line, col, srcLine) ~ (to ~ None) ~ e =>
+          Expression.UntypedCast(to, FreshBlame("cast", line, col, srcLine), e)
       }) |
       appOrCastChain
 
@@ -89,18 +95,20 @@ object Parser extends JavaTokenParsers {
     positioned(currentPosition ~ atomExpression ~ rep(appOrCastSuffix) ^^ {
       case pos ~ head ~ suffixes =>
         suffixes.foldLeft(head) {
-          case (acc, Left(arg))               => Expression.Apply(acc, arg).setPos(acc.pos)
+          case (acc, Left(args)) =>
+            args.foldLeft(acc)((f, arg) => Expression.Apply(f, arg).setPos(acc.pos))
           case (acc, Right((t, line, col, srcLine))) =>
             Expression.UntypedCast(t, FreshBlame("cast", line, col, srcLine), acc).setPos(acc.pos)
         }
     })
   }
 
-  private def appOrCastSuffix: Parser[Either[Expression, (Type, Int, Int, String)]] =
+  private def appOrCastSuffix: Parser[Either[List[Expression], (Type, Int, Int, String)]] =
     (currentPosition ~ ("as" ~> _type) ^^ {
       case (line, col, srcLine) ~ t => Right((t, line, col, srcLine))
     }) |
-    (atomExpression ^^ { e => Left(e) })
+    ("(" ~> repsep(expression, ",") <~ ")" ^^ { args => Left(args) }) |
+    (atomExpression ^^ { e => Left(List(e)) })
 
   private def atomExpression: Parser[Expression] =
     positioned(lambda) |
