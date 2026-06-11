@@ -1,0 +1,34 @@
+fn true(t : (unit[?] -[?]-> unit[?]), f : (unit[?] -[?]-> unit[?])) -[?]-> { t () };
+fn false(t : (unit[?] -[?]-> unit[?]), f : (unit[?] -[?]-> unit[?])) -[?]-> { f () };
+
+fn if(
+     b : ((unit[?] -[?]-> unit[?]) -[?]-> ((unit[?] -[?]-> unit[?]) -[?]-> unit[?])),
+     t : (unit[?] -[?]-> unit[?]),
+     f : (unit[?] -[?]-> unit[?])
+  ) -[?]-> {
+  b t f
+};
+
+let infoH = new[H]<int>(42);
+
+fn sendToManager(r : ref[H]<int>) -[H]-> { () };
+fn sendToFacebook(r : ref[L]<int>) -[L]-> { () };
+
+fn addPrivileged(
+     isPrivileged : ((unit[?] -[?]-> unit[?]) -[?]-> ((unit[?] -[?]-> unit[?]) -[?]-> unit[?])),
+     worker : (ref[?]<int[?]> -[?]-> unit[?]),
+     report : ref[?]<int[?]>
+  ) -[?]-> {
+      if(isPrivileged,
+        lambda(x : unit[?]) -[?]-> { report := !infoH },
+        lambda(x : unit[?]) -[?]-> { () });
+      worker report
+};
+
+let w = sendToFacebook as (ref[?]<int[?]> -[?]-> unit[?]);
+
+let report = new[L]<int[?]>(0);
+
+addPrivileged(false, w, report);
+
+!report

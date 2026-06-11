@@ -1,0 +1,26 @@
+fn true(t : (unit -[L]-> unit), f : (unit -[L]-> unit)) -[L]-> {t ()};
+fn false(t : (unit -[L]-> unit), f : (unit -[L]-> unit)) -[L]-> {f ()};
+fn if(b : ((unit -[L]-> unit) -[L]-> ((unit -[L]-> unit) -[L]-> unit)), t : (unit -[L]-> unit), f : (unit -[L]-> unit)) -[L]-> {
+  b t f
+};
+
+
+
+let infoH = new[H]<int>(42);
+
+fn sendToManager(r : ref[H]<int>) -[H]-> {()};
+fn sendToFacebook(r : ref[L]<int>) -[L]-> {()};
+
+fn addPrivileged(
+     isPrivileged : ((unit -[L]-> unit) -[L]-> ((unit -[L]-> unit) -[L]-> unit)),
+     worker : (ref[H]<int> -[H]-> unit),
+     report : ref[H]<int>
+  ) -[L]-> {
+      if (isPrivileged)
+        (lambda(x : unit) -[L]-> { report := !infoH })
+        (lambda(x : unit) -[L]-> { () });
+
+      worker(report)
+};
+
+addPrivileged(false, sendToFacebook)

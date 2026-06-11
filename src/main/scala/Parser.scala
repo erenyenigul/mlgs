@@ -95,6 +95,8 @@ object Parser extends JavaTokenParsers {
     positioned(currentPosition ~ atomExpression ~ rep(appOrCastSuffix) ^^ {
       case pos ~ head ~ suffixes =>
         suffixes.foldLeft(head) {
+          case (acc, Left(Nil)) =>
+            Expression.Apply(acc, Expression.Val(Value(RawValue.Unit, SecurityLevel.L))).setPos(acc.pos)
           case (acc, Left(args)) =>
             args.foldLeft(acc)((f, arg) => Expression.Apply(f, arg).setPos(acc.pos))
           case (acc, Right((t, line, col, srcLine))) =>
