@@ -4,21 +4,19 @@ fn if(b : ((unit -[L]-> unit) -[L]-> ((unit -[L]-> unit) -[L]-> unit)), t : (uni
   b t f
 };
 
+let infoH = new[H]<int[H]>(42[H]);
 
-
-let infoH = new[H]<int>(42);
-
-fn sendToManager(r : ref[H]<int>) -[H]-> {()};
+fn  sendToManager(r : ref[H]<int>) -[H]-> {()};
 fn sendToFacebook(r : ref[L]<int>) -[L]-> {()};
 
 fn addPrivileged(
      isPrivileged : ((unit -[L]-> unit) -[L]-> ((unit -[L]-> unit) -[L]-> unit)),
-     worker : (ref[H]<int> -[H]-> unit),
-     report : ref[H]<int>
+     worker : (ref[L]<int[L]> -[L]-> unit),
+     report : ref[L]<int[L]>
   ) -[L]-> {
       if (isPrivileged)
-        (lambda(x : unit) -[L]-> { report := !infoH })
-        (lambda(x : unit) -[L]-> { () });
+        (lambda (x : unit) -[L]-> { report := !infoH; () })
+        (lambda (x : unit) -[L]-> { () });
 
       worker(report)
 };

@@ -1,0 +1,13 @@
+fn test(
+    loc: ref[?]<int[?]>,
+    i: int[H]
+) -[L]-> {
+    loc := i;
+    loc
+};
+
+let my_int     = new[L]<int[L]>(0[L]);
+let my_dyn_int = my_int as ref[?]<int[?]>;
+
+test(my_dyn_int, 0[H]);
+!my_dyn_int

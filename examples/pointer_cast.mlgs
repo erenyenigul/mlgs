@@ -12,8 +12,6 @@ let writer_dyn = cast<
 >(writer);
 
 let apply = apply_writer(writer_dyn, 5[H]);
-
-let y = new[L]<unit[L]>(());
-
 apply(y);
+apply y
 !y

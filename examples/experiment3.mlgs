@@ -1,0 +1,13 @@
+let i = 1[H];
+
+fn test(
+    loc: ref[?]<int[?]>
+) -[H]-> {
+    loc := i
+};
+let dcast = (test as (ref[?]<int[?]> -[H]-> unit[L]));
+
+let myIntAtLoc = new[L]<int[L]>(0[L]);
+let casted = cast<ref[?]<int[?]>>(myIntAtLoc);
+
+dcast(casted)

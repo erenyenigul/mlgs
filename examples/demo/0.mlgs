@@ -1,0 +1,9 @@
+let public = new[L]<int[L]>(0[L]);
+
+(public as ref[L]<int[H]>) := 1[H];
+
+fn dummy(i: int[L]) -[L]-> {
+    i
+};
+
+dummy(!public)

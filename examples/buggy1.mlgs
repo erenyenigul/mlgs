@@ -6,7 +6,6 @@ fn assign (to: ref<int[L]>, v: int[L]) -[L]-> {
 };
 
 fn[H] assign_secret (to: ref<int[?]>, v: int[?]) -[?]-> {
-  to := v;
   public as ref<int[?]> := 5[L]
 };
 

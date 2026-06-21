@@ -1,0 +1,7 @@
+fn test(
+    i: int[H]
+) -[?]-> {
+    i
+};
+
+test(0[L])
