@@ -34,9 +34,9 @@ This project implements ML-GS, the calculus introduced by Fennell and Thiemann i
 ML core language with references and higher-order functions with gradual information-flow
 control (IFC). Security casts allow programmers to mix statically and dynamically checked
 regions in the same program, bridging the gap between the precision of static type systems
-and the flexibility of dynamic monitoring.
+and the flexibility of dynamic typing.
 
-The motivation is practical: static IFC type systems such as FlowCaml are often too
+The motivation is practical. Static IFC type systems such as FlowCaml are often too
 conservative for real programs. For example, a function whose safety depends on a runtime
 flag (e.g., \texttt{isPrivileged}) cannot be verified statically even when it is
 semantically safe. By inserting casts, programmers can confine dynamic checks to those
@@ -54,9 +54,11 @@ The implementation is a Scala interpreter that covers the full ML-GS calculus fr
 It consists of three main components.
 
 \paragraph{Parser.} A combinator parser that reads ML-GS source programs. The surface syntax
-extends the paper's formal notation with named functions, multi-argument currying, sequencing,
-and explicit cast syntax. Security level annotations are written as \texttt{[L]}, \texttt{[H]},
-and \texttt{[?]}. 
+extends the paper's formal notation with several conveniences: named functions (\texttt{fn}),
+multi-argument currying, sequencing (\texttt{;}), \texttt{let} bindings, and a simplified cast
+syntax (\texttt{e as t}) that infers the source type rather than requiring it to be written
+explicitly. Security level annotations are written as \texttt{[L]}, \texttt{[H]}, and
+\texttt{[?]}.
 
 \paragraph{Type checker.} Implements the typing rule $pc;\Gamma;M \vdash e : t$ (Figure 2
 of the paper), including subtyping ($\prec$), compatibility ($\sim$), and the typing rules for
@@ -66,7 +68,7 @@ checker enforces the program counter constraint on write effects and reports sou
 errors.
 
 \paragraph{Interpreter.} Implements the small-step reduction relation $e/\mu \xrightarrow{PC} r$
-from Figures 5, 6, and 9 of the paper. This includes:
+from Figures 5, 6, and 9 of the paper, covering the following rules.
 \begin{itemize}
   \item Lambda application with protect wrapping (\textsc{R-App}, \textsc{R-Protect}).
   \item Heap allocation, dereference, and assignment with NSU enforcement
@@ -79,29 +81,44 @@ from Figures 5, 6, and 9 of the paper. This includes:
   \item Blame propagation: failures carry blame labels that identify the responsible cast.
 \end{itemize}
 
-A REPL is also included for interactive exploration. It has a history feature, keeping the previous bindings and the heap state after each evaluation with a press of the enter key. 
+A REPL is also provided for interactive exploration, preserving variable bindings and heap
+state across evaluations.
 
-\subsection*{Example}
+\subsection*{Examples}
 
-The following program from Section~II of the paper is supported. Casting
-\texttt{sendToFacebook} to a dynamic type allows it to be used in the untyped
-\texttt{addPrivileged} context. A downcast of the result to \texttt{ref~Report\textsuperscript{L}}
-enforces the static guarantee at the boundary.
+The \texttt{examples/} directory contains programs that exercise different aspects of the
+calculus. The two most illustrative are the \texttt{addPrivileged} variants from Section~II
+of the paper.
+
+\paragraph{False positive (\texttt{examples/facebook\_fail.mlgs}).}
+With fully static types, \texttt{addPrivileged} must be typed to cover both the
+\texttt{true} and \texttt{false} branches. The body contains \texttt{report := !infoH},
+which writes a value of type \texttt{int[H]} into a \texttt{ref[L]<int[L]>}. The type
+checker rejects this with a type mismatch, even though the \texttt{false} branch never
+executes the write. This is the over-conservatism gradual typing is designed to address.
+
+\paragraph{Gradual fix (\texttt{examples/facebook\_dyn.mlgs}).}
+Giving \texttt{addPrivileged} a fully dynamic signature and casting \texttt{sendToFacebook}
+at the call site resolves the static rejection. Security levels are checked at runtime instead.
 
 \begin{lstlisting}
-fn sendToFacebook(r : ref[L]<int[L]>) -[L]-> { r := 0 };
-
+// examples/facebook_dyn.mlgs
 let w = sendToFacebook as (ref[?]<int[?]> -[?]-> unit[?])[L];
-// w is now dynamically checked
+addPrivileged(false, w, report);
 \end{lstlisting}
 
-Running the NSU violation example from Section~II raises a blame exception at runtime,
-correctly identifying the cast location.
+At runtime, no secret value flows to \texttt{sendToFacebook} and the program completes
+without a blame exception. Passing \texttt{true} instead would trigger a blame error
+when the secret write is attempted under a dynamic check.
+
+The remaining examples cover NSU enforcement (\texttt{4.mlgs}), successful NSU under a
+low pc (\texttt{3.mlgs}), downcast blame (\texttt{0.mlgs}), and high-security function
+values (\texttt{secret\_func.mlgs}). Each is described in the repository README.
 
 \section{Evaluation}
 
-The implementation is evaluated via a test suite of 20 unit tests (\texttt{ProgramTests.scala})
-covering:
+The implementation is evaluated via a test suite of 20 unit tests in \texttt{ProgramTests.scala},
+covering the following scenarios.
 
 \begin{itemize}
   \item Basic values, let bindings, and function application.
@@ -114,8 +131,8 @@ covering:
   \item Higher-order functions and guard casts.
 \end{itemize}
 
-All 20 tests pass. The example programs in the \texttt{examples/} directory, including
-\texttt{function\_guard\_cast.mlgs} and \texttt{pointer\_cast.mlgs}, also execute correctly.
+All 20 tests pass. All programs in the \texttt{examples/} directory also execute correctly,
+including the NSU, cast, and \texttt{addPrivileged} scenarios described above.
 
 \section{Limitations}
 
@@ -131,25 +148,73 @@ All 20 tests pass. The example programs in the \texttt{examples/} directory, inc
         is not implemented.
   \item \textbf{No inference.} Cast placement is entirely manual. The paper lists automatic
         cast inference as future work.
-  \item \textbf{No FE strategy.} The implementation uses NSU for dynamic IFC. The faceted
-        execution (FE) strategy mentioned in the paper is not included.
 \end{itemize}
 
 \section{Experience}
 
 The most interesting part of the project was working through the reference cast mechanism.
 The distinction between the access type of a pointer and the current type of a heap cell is
-subtle: a cast changes only the pointer's access type, not the stored value, and the
+subtle. A cast changes only the pointer's access type, not the stored value, and the
 interpreter must insert a reconciling cast at each dereference. Getting this right required
-reading the typing and reduction rules together several times, and the guard cast rules
-(Figures 8 and 9) that propagate program counter constraints through sub-expressions were
-the most tricky to implement correctly.
+reading the typing and reduction rules together several times.
 
-The main challenge was the sheer number of mutually dependent concepts: security levels,
-type annotations, blame labels, the PC context, and the heap current/access type split all
-interact in almost every reduction rule. Building the interpreter rule by rule and validating
-each with a targeted test case kept the process manageable. Overall the paper is well-structured,
-and having the formal rules as a direct blueprint made the Scala code relatively straightforward
-once the data model was settled.
+One concrete misconception was the timing of blame errors on references. My initial intuition
+was that a blame error should fire at write time, when a secret value is stored into a cell.
+However, the implementation kept raising errors at dereference instead, which I first assumed
+was a bug. Reading the semantics more carefully revealed that this is intentional. The rule
+\textsc{R-Deref} is where the access type and the current type of the heap cell are
+reconciled, and a mismatch is only observable when the value is read out. Writes are
+permitted even when they change the cell's type annotation, because a static alias of the
+same pointer may still see the old type. The blame error surfaces at the first dereference
+that cannot reconcile the two types, not at the write that caused the divergence.
+
+Another challenge was implementing guard cast propagation. When a \textsc{GuardCast} node
+wraps an \texttt{Assign}, the interpreter must decompose the assignment by applying a
+\textsc{PointerCast} to the left-hand side and propagate the guard cast into both
+sub-expressions before evaluating either. Similarly, for a \textsc{GuardCast} wrapping an
+\texttt{Apply}, a \textsc{FunctionGuardCast} must be introduced on the function position
+while the guard cast is pushed into the argument. Getting this decomposition right required
+careful cross-referencing of the reduction rules (Figure~9) with the typing rules (Figure~8),
+because the guard cast must be present in the right position for type preservation to hold
+at each intermediate step. A mistake in the order of wrapping caused the pc constraint to
+be dropped or applied to the wrong sub-expression, producing either unsound behaviour or
+spurious type errors that were difficult to trace back to the relevant rule.
+
+Designing the surface syntax was an interesting problem in itself. The paper's formal notation
+uses mathematical conventions that do not translate directly into ASCII. Security levels appear
+as superscripts (\texttt{int\textsuperscript{L}}, \texttt{ref\textsuperscript{L}
+int\textsuperscript{H}}), and the function arrow carries its pc annotation as a superscript
+($t_1 \xrightarrow{pc} t_2$). The first decision was to move all annotations into square
+brackets, giving \texttt{int[L]}, \texttt{ref[L]<int[H]>}, and \texttt{-[pc]->}. Square
+brackets were chosen for level annotations because they are lightweight and visually distinct
+from the type structure; angle brackets were chosen for the content type of references because
+they mirror the common generic-type notation from languages like Java or C++, making
+\texttt{ref[L]<int[H]>} read naturally as ``a level-L reference to a level-H integer.''
+The function arrow \texttt{-[pc]->} was designed to echo the paper's annotated arrow while
+remaining unambiguous to parse: the leading hyphen and trailing \texttt{->} bracket the
+annotation symmetrically. These choices made the syntax feel consistent and close enough to
+the paper that programs could be written by reading the formal rules directly, without
+needing a separate translation step.
+
+Integrating the surface-syntax extensions also required careful thought. Features like
+multi-argument currying, named functions, and the \texttt{as} cast shorthand are not in the
+paper's formal system, so there is no rule to follow directly. Each extension had to be
+reasoned about in terms of what it desugars to and whether that desugaring preserves the
+type and security invariants. For example, a multi-argument function \texttt{fn f(x, y) -> e}
+desugars into nested lambdas, each carrying its own value-level annotation. Deciding which
+level to assign to the intermediate lambdas, and verifying that the resulting type is
+compatible with what the type checker infers for the outermost call, required thinking
+carefully about how the paper's \textsc{T-Abs} and \textsc{T-App} rules compose. The
+\texttt{as} cast shorthand similarly needed a decision: rather than asking the programmer to
+supply both source and target types, the type checker infers the source type from the
+sub-expression, which is sound but means the cast node in the AST is partially unresolved
+until the type checker runs.
+
+The main challenge overall was the sheer number of mutually dependent concepts. Security
+levels, type annotations, blame labels, the PC context, and the heap current/access type
+split all interact in almost every reduction rule. Building the interpreter rule by rule and
+validating each with a targeted test case kept the process manageable. The paper is
+well-structured, and having the formal rules as a direct blueprint made the Scala code
+relatively straightforward once the data model was settled.
 
 \end{document}

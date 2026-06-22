@@ -1,8 +1,0 @@
-fn test(
-    loc: ref<int[L]>
-) -[?]-> {
-    loc := 1
-};
-
-let l = new[L]<int[L]>(0);
-test(l)

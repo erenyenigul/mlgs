@@ -46,3 +46,9 @@ build/
 
 ### Scala ###
 .bsp/
+
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.log
