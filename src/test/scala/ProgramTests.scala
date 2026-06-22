@@ -62,7 +62,7 @@ object ProgramTests:
 
     "parse: ref alloc and deref" -> (() =>
       val result = run("""
-        let r = new(int[L], L) 99;
+        let r = new[L]<int[L]>(99);
         !r
       """)
       assert(result.isRight, result)
@@ -71,7 +71,7 @@ object ProgramTests:
 
     "parse: ref assignment" -> (() =>
       val result = run("""
-        let r = new(int[L], L) 0;
+        let r = new[L]<int[L]>(0);
         r := 42;
         !r
       """)
@@ -99,7 +99,7 @@ object ProgramTests:
 
     "parse: NSU violation raises blame at runtime" -> (() =>
       val source = """
-        let pub = new(int[L], L) 0;
+        let pub = new[L]<int[L]>(0);
         let dyn = pub as ref[?]<int[?]>;
         prot H (dyn := 42)
       """
@@ -122,7 +122,7 @@ object ProgramTests:
     // deref H pointer: type is H (content L joined with pointer level H)
     "parse: deref H pointer type is H" -> (() =>
       val result = typecheck("""
-        let r = new(int[L], H) 5;
+        let r = new[H]<int[L]>(5);
         !r
       """)
       assert(result.isRight, result)
@@ -152,12 +152,12 @@ object ProgramTests:
 
     // H-pc lambda body: allocating L ref under H pc is a type error
     "parse: H pc cannot allocate L ref" -> (() =>
-      val source = "lambda(x : int[H]) -[H]-> { new(int[L], L) 0 }"
+      val source = "lambda(x : int[H]) -[H]-> { new[L]<int[L]>(0) }"
       assertThrows[Exception](typecheck(source).fold(throw _, _ => ()))
       ),
 
     "parse: H pc can allocate H ref" -> (() =>
-      val result = run("prot H (new(int[H], L) 0[H])")
+      val result = run("prot H (new[L]<int[H]>(0[H]))")
       assert(result.isRight, result)
       ),
 

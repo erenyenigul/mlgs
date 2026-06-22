@@ -19,7 +19,7 @@ sbt "run examples/0.mlgs"
 sbt run
 
 # Run the test suite (reproduces the evaluation results from the report)
-sbt "runMain runProgramTests"
+sbt test
 ```
 
 ## Syntax
