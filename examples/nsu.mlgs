@@ -1,0 +1,8 @@
+let public = new[L]<int[L]>(0[L]);
+
+fn leak (secret: int[H]) -[H]-> {
+    public := secret
+};
+
+let s = 1[H];
+leak(s)

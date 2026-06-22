@@ -1,7 +1,6 @@
 # ML-GS: Gradual Security Typing with References
 
-Toy implementation of Fennell and Thiemann's *Gradual Security Typing with References* (CSF 2013)
-for an MSc seminar at TU Delft.
+Toy implementation of Fennell and Thiemann's [Gradual Security Typing with References](https://ieeexplore.ieee.org/document/6595831/) for an MSc seminar at TU Delft.
 
 ML-GS lets programmers mix static and dynamic information-flow control (IFC) in the same program.
 Security casts mediate between statically checked regions (where non-interference is guaranteed by
@@ -64,42 +63,48 @@ e1; e2                          // evaluate e1, discard result, return e2
 
 ## Examples
 
-### `examples/0.mlgs` -- downcast blame
+### `examples/0.mlgs`: downcast blame
 
 Allocates a public `ref[L]<int[L]>`, then writes a secret integer through a cast to
 `ref[L]<int[H]>`. A subsequent dereference into a function expecting `int[L]` detects the
 level mismatch. Result: **runtime blame exception** pointing to the allocation site.
 
-### `examples/1.mlgs` -- implicit level promotion
+### `examples/1.mlgs`: subtyping at the call site
 
-Passes a public integer `0[L]` to a function expecting `int[H]`. The dynamic annotation `[?]`
-on the function's pc allows the call. The result is promoted to level `H` because the function
-annotation subsumes it. Result: `0[H]`.
+Passes a public integer `0[L]` to a function expecting `int[H]`. The type checker accepts
+this via subtyping (`int[L]` is a subtype of `int[H]`), but the runtime value retains its
+original level. The function's pc is `[?]` so no level is forced on the result. Result: `0[L]`.
 
-### `examples/2.mlgs` -- dynamic argument level
+### `examples/2.mlgs`: dynamic argument level
 
 A function accepting a fully dynamic `int[?]` is called with a secret `0[H]`. The dynamic
 annotation propagates the runtime level through to the result. Result: `0[H]`.
 
-### `examples/3.mlgs` -- NSU success (low pc write)
+### `examples/3.mlgs`: NSU success (low pc write)
 
 A public reference is cast to `ref[?]<int[?]>` and passed to a function that assigns a secret
 integer under a **low** pc (`-[L]->`). The NSU check passes because the write happens outside a
 secret context. The cast reconciles the access type at dereference time. Result: `0[H]`.
 
-### `examples/4.mlgs` -- NSU failure (high pc write to public cell)
+### `examples/4.mlgs`: NSU failure (high pc write to public cell)
 
 Same setup as `3.mlgs`, but the function runs under a **high** pc (`-[H]->`). Writing a secret
 into what is ultimately a public cell (`new[L]<int[L]>`) violates the NSU policy. Result:
 **runtime blame exception** pointing to the allocation site.
 
-### `examples/buggy.mlgs` -- NSU violation via dynamic cast
+### `examples/nsu.mlgs`: NSU caught statically
+
+A function running under a high pc (`-[H]->`) attempts to write a secret integer directly
+into a public reference. The type checker rejects this before runtime because a low-security
+write effect is forbidden under a high pc. Result: **type error**.
+
+### `examples/buggy.mlgs`: NSU violation via dynamic cast
 
 A public reference is cast to `ref<int[?]>` and assigned to inside a high-security function
 body. The assignment upgrades a low cell under a high pc, which the dynamic IFC monitor
 catches. Result: **runtime blame exception**.
 
-### `examples/facebook_fail.mlgs` -- static false positive
+### `examples/facebook_fail.mlgs`: static false positive
 
 The `addPrivileged` example from Section II of the paper, fully statically typed. The type
 checker rejects the program because `addPrivileged`'s body writes `infoH : int[H]` into
@@ -107,13 +112,13 @@ checker rejects the program because `addPrivileged`'s body writes `infoH : int[H
 system cannot track the correspondence between the `isPrivileged` flag and the security level
 of `worker`. Result: **type error**.
 
-### `examples/facebook_dyn.mlgs` -- gradual fix
+### `examples/facebook_dyn.mlgs`: gradual fix
 
 The same scenario with `addPrivileged` given a fully dynamic signature and `sendToFacebook`
 wrapped in a cast at the call site. The `false` path executes safely at runtime with no
 secret flowing to Facebook. Result: `0[L]`.
 
-### `examples/secret_func.mlgs` -- high-security function value
+### `examples/secret_func.mlgs`: high-security function value
 
 Defines a function annotated at level `H` that takes and returns a secret integer. The program
 evaluates to the function value itself at level `H`. Demonstrates that function values carry

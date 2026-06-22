@@ -30,23 +30,32 @@
 \section{Scope and Motivation}
 
 This project implements ML-GS, the calculus introduced by Fennell and Thiemann in
-\emph{Gradual Security Typing with References} (CSF 2013). ML-GS extends a monomorphic
-ML core language with references and higher-order functions with gradual information-flow
-control (IFC). Security casts allow programmers to mix statically and dynamically checked
-regions in the same program, bridging the gap between the precision of static type systems
-and the flexibility of dynamic typing.
+\emph{Gradual Security Typing with References}~\cite{fennell2013}. ML-GS extends a
+monomorphic ML core language with references and higher-order functions with gradual
+information-flow control (IFC). Security casts allow programmers to mix statically and
+dynamically checked regions in the same program, bridging the gap between the precision of
+static type systems and the flexibility of dynamic monitoring.
 
-The motivation is practical. Static IFC type systems such as FlowCaml are often too
-conservative for real programs. For example, a function whose safety depends on a runtime
-flag (e.g., \texttt{isPrivileged}) cannot be verified statically even when it is
-semantically safe. By inserting casts, programmers can confine dynamic checks to those
+The motivation is practical. Static IFC type systems such as FlowCaml~\cite{pottier2003}
+are often too conservative for real programs. For example, a function whose safety depends
+on a runtime flag (e.g., \texttt{isPrivileged}) cannot be verified statically even when it
+is semantically safe. By inserting casts, programmers can confine dynamic checks to those
 regions and keep the rest statically verified.
 
-The paper's key technical challenge is handling references under gradual typing. Unlike
+The idea of combining gradual typing with security typing originates with Disney and
+Flanagan~\cite{disney2011}, who studied this combination for a pure lambda calculus.
+Fennell and Thiemann build on their approach and extend it to an ML core language with
+references, which introduces significant complications not present in the pure setting.
+Gradual typing itself was introduced by Siek and Taha~\cite{siek2006}, and the dynamic IFC
+technique used here, the no-sensitive-upgrade (NSU) policy, is due to Austin and
+Flanagan~\cite{austin2009}. The underlying static type system is adapted from Pottier and
+Simonet's type system for CoreML~\cite{pottier2003}.
+
+The key technical challenge is handling references under gradual typing. Unlike
 pure-lambda-calculus settings, references allow flow-sensitivity attacks, require invariant
 subtyping, and complicate the boundary between static and dynamic code. The paper addresses
 this with a distinction between \emph{access types} and \emph{current types} on heap cells,
-and with a no-sensitive-upgrade (NSU) policy for dynamic IFC.
+and with the NSU policy for dynamic IFC.
 
 \section{Approach and Main Results}
 
@@ -112,7 +121,7 @@ without a blame exception. Passing \texttt{true} instead would trigger a blame e
 when the secret write is attempted under a dynamic check.
 
 The remaining examples cover NSU enforcement (\texttt{4.mlgs}), successful NSU under a
-low pc (\texttt{3.mlgs}), downcast blame (\texttt{0.mlgs}), and high-security function
+low pc (\texttt{3.mlgs}), and high-security function
 values (\texttt{secret\_func.mlgs}). Each is described in the repository README.
 
 \section{Evaluation}
@@ -216,5 +225,35 @@ split all interact in almost every reduction rule. Building the interpreter rule
 validating each with a targeted test case kept the process manageable. The paper is
 well-structured, and having the formal rules as a direct blueprint made the Scala code
 relatively straightforward once the data model was settled.
+
+\begin{thebibliography}{9}
+
+\bibitem{fennell2013}
+L.~Fennell and P.~Thiemann,
+``Gradual security typing with references,''
+in \emph{2013 IEEE 26th Computer Security Foundations Symposium},
+New Orleans, LA, USA, 2013, pp.~224--239, doi: 10.1109/CSF.2013.22.
+
+\bibitem{disney2011}
+T.~Disney and C.~Flanagan,
+``Gradual information flow typing,''
+in \emph{STOP 2011}, 2011.
+
+\bibitem{pottier2003}
+F.~Pottier and V.~Simonet,
+``Information flow inference for ML,''
+\emph{ACM TOPLAS}, vol.~25, no.~1, pp.~117--158, Jan. 2003.
+
+\bibitem{austin2009}
+T.~H.~Austin and C.~Flanagan,
+``Efficient purely-dynamic information flow analysis,''
+in S.~Chong and D.~A.~Naumann, Eds., \emph{PLAS}, Dublin, Ireland, June 2009, pp.~113--124, ACM.
+
+\bibitem{siek2006}
+J.~G.~Siek and W.~Taha,
+``Gradual typing for functional languages,''
+in \emph{Scheme and Functional Programming Workshop}, Sept. 2006.
+
+\end{thebibliography}
 
 \end{document}
