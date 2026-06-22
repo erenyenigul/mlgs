@@ -177,19 +177,13 @@ permitted even when they change the cell's type annotation, because a static ali
 same pointer may still see the old type. The blame error surfaces at the first dereference
 that cannot reconcile the two types, not at the write that caused the divergence.
 
-Another challenge was implementing guard cast propagation. When a \textsc{GuardCast} node
-wraps an \texttt{Assign}, the interpreter must decompose the assignment by applying a
-\textsc{PointerCast} to the left-hand side and propagate the guard cast into both
-sub-expressions before evaluating either. Similarly, for a \textsc{GuardCast} wrapping an
-\texttt{Apply}, a \textsc{FunctionGuardCast} must be introduced on the function position
-while the guard cast is pushed into the argument. Getting this decomposition right required
-careful cross-referencing of the reduction rules (Figure~9) with the typing rules (Figure~8),
-because the guard cast must be present in the right position for type preservation to hold
-at each intermediate step. A mistake in the order of wrapping caused the pc constraint to
-be dropped or applied to the wrong sub-expression, producing either unsound behaviour or
-spurious type errors that were difficult to trace back to the relevant rule.
+Guard cast propagation was also tricky. A \textsc{GuardCast} wrapping an assignment or
+function application must be decomposed into smaller casts on the sub-expressions following
+Figure~9, in a specific order for type preservation to hold. Getting it wrong silently
+dropped the pc constraint or applied it to the wrong sub-expression, producing errors that
+were hard to trace back to the relevant rule.
 
-Designing the surface syntax was an interesting problem in itself. The paper's formal notation
+Designing the syntax was an interesting problem in itself. The paper's formal notation
 uses mathematical conventions that do not translate directly into ASCII. Security levels appear
 as superscripts (\texttt{int\textsuperscript{L}}, \texttt{ref\textsuperscript{L}
 int\textsuperscript{H}}), and the function arrow carries its pc annotation as a superscript
@@ -205,7 +199,7 @@ annotation symmetrically. These choices made the syntax feel consistent and clos
 the paper that programs could be written by reading the formal rules directly, without
 needing a separate translation step.
 
-Integrating the surface-syntax extensions also required careful thought. Features like
+Integrating the syntax extensions also required careful thought. Features like
 multi-argument currying, named functions, and the \texttt{as} cast shorthand are not in the
 paper's formal system, so there is no rule to follow directly. Each extension had to be
 reasoned about in terms of what it desugars to and whether that desugaring preserves the
@@ -224,7 +218,7 @@ levels, type annotations, blame labels, the PC context, and the heap current/acc
 split all interact in almost every reduction rule. Building the interpreter rule by rule and
 validating each with a targeted test case kept the process manageable. The paper is
 well-structured, and having the formal rules as a direct blueprint made the Scala code
-relatively straightforward once the data model was settled.
+relatively straightforward.
 
 \begin{thebibliography}{9}
 
