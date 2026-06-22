@@ -1,0 +1,155 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{parskip}
+
+\lstdefinelanguage{mlgs}{
+  keywords={let, fn, new, prot, cast, lambda, as, if, then, else},
+  keywordstyle=\bfseries,
+  comment=[l]{//},
+  morestring=[b]",
+}
+\lstset{
+  language=mlgs,
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+}
+
+\title{\textbf{ML-GS: An Implementation of Gradual Security Typing with References}}
+\author{Eren Yenigül}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\section{Scope and Motivation}
+
+This project implements ML-GS, the calculus introduced by Fennell and Thiemann in
+\emph{Gradual Security Typing with References} (CSF 2013). ML-GS extends a monomorphic
+ML core language with references and higher-order functions with gradual information-flow
+control (IFC). Security casts allow programmers to mix statically and dynamically checked
+regions in the same program, bridging the gap between the precision of static type systems
+and the flexibility of dynamic monitoring.
+
+The motivation is practical: static IFC type systems such as FlowCaml are often too
+conservative for real programs. For example, a function whose safety depends on a runtime
+flag (e.g., \texttt{isPrivileged}) cannot be verified statically even when it is
+semantically safe. By inserting casts, programmers can confine dynamic checks to those
+regions and keep the rest statically verified.
+
+The paper's key technical challenge is handling references under gradual typing. Unlike
+pure-lambda-calculus settings, references allow flow-sensitivity attacks, require invariant
+subtyping, and complicate the boundary between static and dynamic code. The paper addresses
+this with a distinction between \emph{access types} and \emph{current types} on heap cells,
+and with a no-sensitive-upgrade (NSU) policy for dynamic IFC.
+
+\section{Approach and Main Results}
+
+The implementation is a Scala interpreter that covers the full ML-GS calculus from the paper.
+It consists of three main components.
+
+\paragraph{Parser.} A combinator parser that reads ML-GS source programs. The surface syntax
+extends the paper's formal notation with named functions, multi-argument currying, sequencing,
+and explicit cast syntax. Security level annotations are written as \texttt{[L]}, \texttt{[H]},
+and \texttt{[?]}. 
+
+\paragraph{Type checker.} Implements the typing rule $pc;\Gamma;M \vdash e : t$ (Figure 2
+of the paper), including subtyping ($\prec$), compatibility ($\sim$), and the typing rules for
+casts (\textsc{T-Cast}), protection (\textsc{T-Protect}), guard casts (\textsc{T-GuardCast}),
+function guard casts (\textsc{T-FunCast}), and pointer casts (\textsc{T-RefCast}). The type
+checker enforces the program counter constraint on write effects and reports source-location
+errors.
+
+\paragraph{Interpreter.} Implements the small-step reduction relation $e/\mu \xrightarrow{PC} r$
+from Figures 5, 6, and 9 of the paper. This includes:
+\begin{itemize}
+  \item Lambda application with protect wrapping (\textsc{R-App}, \textsc{R-Protect}).
+  \item Heap allocation, dereference, and assignment with NSU enforcement
+        (\textsc{R-New}, \textsc{R-Deref}, \textsc{R-Asgn}, \textsc{R-Asgn-NSU-Fail}).
+  \item Cast reduction with propagation into sub-values (\textsc{R-Cast-Sub},
+        \textsc{R-Cast-To-Dyn}, cast propagation of Figure 7).
+  \item Guard casts that adjust program counter constraints through assignments and
+        function bodies (\textsc{R-GuardCast-New}, \textsc{R-GuardCast-Asgn},
+        \textsc{R-GuardCast-App}, \textsc{R-FunCast}, \textsc{R-RefCast}).
+  \item Blame propagation: failures carry blame labels that identify the responsible cast.
+\end{itemize}
+
+A REPL is also included for interactive exploration. It has a history feature, keeping the previous bindings and the heap state after each evaluation with a press of the enter key. 
+
+\subsection*{Example}
+
+The following program from Section~II of the paper is supported. Casting
+\texttt{sendToFacebook} to a dynamic type allows it to be used in the untyped
+\texttt{addPrivileged} context. A downcast of the result to \texttt{ref~Report\textsuperscript{L}}
+enforces the static guarantee at the boundary.
+
+\begin{lstlisting}
+fn sendToFacebook(r : ref[L]<int[L]>) -[L]-> { r := 0 };
+
+let w = sendToFacebook as (ref[?]<int[?]> -[?]-> unit[?])[L];
+// w is now dynamically checked
+\end{lstlisting}
+
+Running the NSU violation example from Section~II raises a blame exception at runtime,
+correctly identifying the cast location.
+
+\section{Evaluation}
+
+The implementation is evaluated via a test suite of 20 unit tests (\texttt{ProgramTests.scala})
+covering:
+
+\begin{itemize}
+  \item Basic values, let bindings, and function application.
+  \item Heap allocation, dereference, and assignment.
+  \item Security level propagation through pointer dereference.
+  \item Cast acceptance: dynamic upcasts, H-to-? and L-to-? casts.
+  \item Cast rejection: downcast of an H value to L raises a blame error at runtime.
+  \item Static type errors: allocating an L reference under an H program counter.
+  \item NSU violation: assigning to a public cell under a secret program counter.
+  \item Higher-order functions and guard casts.
+\end{itemize}
+
+All 20 tests pass. The example programs in the \texttt{examples/} directory, including
+\texttt{function\_guard\_cast.mlgs} and \texttt{pointer\_cast.mlgs}, also execute correctly.
+
+\section{Limitations}
+
+\begin{itemize}
+  \item \textbf{Two-level lattice only.} The implementation uses the L/H lattice from the paper.
+        The paper notes results generalize to arbitrary discrete lattices, but this is not implemented.
+  \item \textbf{No polymorphism.} The calculus and implementation are monomorphic, as in the paper.
+  \item \textbf{Termination insensitivity.} The system proves termination-insensitive
+        non-interference (TINI). Timing and termination channels are not addressed.
+  \item \textbf{Blame precision.} As discussed in Section VIII of the paper, blame labels
+        can be imprecise because labels are joined unconditionally in \textsc{R-Deref}. The
+        extended pointer syntax that would recover precision (also described in Section VIII)
+        is not implemented.
+  \item \textbf{No inference.} Cast placement is entirely manual. The paper lists automatic
+        cast inference as future work.
+  \item \textbf{No FE strategy.} The implementation uses NSU for dynamic IFC. The faceted
+        execution (FE) strategy mentioned in the paper is not included.
+\end{itemize}
+
+\section{Experience}
+
+The most interesting part of the project was working through the reference cast mechanism.
+The distinction between the access type of a pointer and the current type of a heap cell is
+subtle: a cast changes only the pointer's access type, not the stored value, and the
+interpreter must insert a reconciling cast at each dereference. Getting this right required
+reading the typing and reduction rules together several times, and the guard cast rules
+(Figures 8 and 9) that propagate program counter constraints through sub-expressions were
+the most tricky to implement correctly.
+
+The main challenge was the sheer number of mutually dependent concepts: security levels,
+type annotations, blame labels, the PC context, and the heap current/access type split all
+interact in almost every reduction rule. Building the interpreter rule by rule and validating
+each with a targeted test case kept the process manageable. Overall the paper is well-structured,
+and having the formal rules as a direct blueprint made the Scala code relatively straightforward
+once the data model was settled.
+
+\end{document}
